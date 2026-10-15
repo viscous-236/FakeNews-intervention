@@ -1,0 +1,195 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '24'
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  # --------------------------------------------------------------------------
+  lint-typecheck:
+    # --------------------------------------------------------------------------
+    name: Lint & typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package
+        run: npm run build -w packages/shared
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+  # --------------------------------------------------------------------------
+  api-tests:
+    # --------------------------------------------------------------------------
+    name: API tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+
+      minio:
+        image: minio/minio:latest
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        options: >-
+          --health-cmd "curl -f http://localhost:9000/minio/health/live"
+          --health-interval 10s
+          --health-retries 5
+        ports:
+          - 9000:9000
+
+      mailpit:
+        image: axllent/mailpit:latest
+        ports:
+          - 1025:1025
+          - 8025:8025
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/app_test
+      DETECTOR_URL: http://localhost:8001
+      DETECTOR_API_KEY: test-detector-key
+      S3_ENDPOINT: http://localhost:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: app-media
+      S3_ACCESS_KEY_ID: minioadmin
+      S3_SECRET_ACCESS_KEY: minioadmin
+      S3_PUBLIC_BASE_URL: http://localhost:9000/app-media
+      S3_FORCE_PATH_STYLE: 'true'
+      SMTP_HOST: localhost
+      SMTP_PORT: '1025'
+      SMTP_SECURE: 'false'
+      EMAIL_FROM: noreply@localhost
+      METRICS_TOKEN: test-metrics-token
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package
+        run: npm run build -w packages/shared
+
+      - name: Create app_test database
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE app_test;" || true
+
+      - name: Create MinIO bucket
+        run: |
+          docker run --rm --network host minio/mc:latest \
+            sh -c "mc alias set local http://localhost:9000 minioadmin minioadmin && \
+                   mc mb --ignore-existing local/app-media && \
+                   mc anonymous set download local/app-media"
+
+      # Detector tests added in TASK-035
+      - name: Start detector (placeholder)
+        run: echo "Detector container started in TASK-034/TASK-035"
+
+      - name: Run API tests
+        run: npm run test -w apps/api
+
+  # --------------------------------------------------------------------------
+  web-tests:
+    # --------------------------------------------------------------------------
+    name: Web tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run web tests
+        run: npm run test -w apps/web
+
+  # --------------------------------------------------------------------------
+  detector-tests:
+    # (placeholder steps — completed in TASK-035)
+    # --------------------------------------------------------------------------
+    name: Detector tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install detector dependencies (placeholder)
+        run: echo "Detector test setup completed in TASK-035"
+
+      - name: Run detector tests (placeholder)
+        run: echo "Detector tests run in TASK-035"
+
+  # --------------------------------------------------------------------------
+  audit:
+    # --------------------------------------------------------------------------
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: npm audit
+        run: npm audit --audit-level=high
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: pip-audit (placeholder — completed in TASK-028)
+        run: echo "pip-audit added in TASK-028"

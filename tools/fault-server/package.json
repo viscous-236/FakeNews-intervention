@@ -1,0 +1,13 @@
+{
+  "name": "@app/fault-server",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Test-only fault-injecting HTTP server (TASK-052). Not started in any non-test environment.",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.2"
+  }
+}

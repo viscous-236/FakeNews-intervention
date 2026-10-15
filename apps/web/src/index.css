@@ -1,0 +1,4 @@
+/* apps/web/src/index.css — Tailwind CSS entry */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
