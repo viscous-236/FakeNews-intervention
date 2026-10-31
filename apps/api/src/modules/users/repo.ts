@@ -1,5 +1,5 @@
 /**
- * apps/api/src/modules/users/repo.ts (TASK-016)
+ * apps/api/src/modules/users/repo.ts (TASK-016, TASK-040)
  *
  * SQL repository for users table (GUD-001, GUD-002, PAT-001).
  */
@@ -94,4 +94,115 @@ export async function findUserById(
     [id],
   );
   return res.rows[0] ?? null;
+}
+
+export interface UserCounts {
+  posts: number;
+  followers: number;
+  following: number;
+}
+
+export async function getUserCounts(
+  userId: string,
+  client?: PoolClient,
+): Promise<UserCounts> {
+  const executor = client ?? getPool();
+  const res = await executor.query<{
+    posts: string;
+    followers: string;
+    following: string;
+  }>(
+    `SELECT
+      (SELECT count(*) FROM posts WHERE author_id = $1 AND deleted_at IS NULL AND status = 'published') AS posts,
+      (SELECT count(*) FROM follows WHERE followee_id = $1) AS followers,
+      (SELECT count(*) FROM follows WHERE follower_id = $1) AS following`,
+    [userId],
+  );
+  const row = res.rows[0];
+  return {
+    posts: parseInt(row?.posts ?? '0', 10),
+    followers: parseInt(row?.followers ?? '0', 10),
+    following: parseInt(row?.following ?? '0', 10),
+  };
+}
+
+export interface ViewerRelationship {
+  following: boolean;
+  blocked: boolean;
+}
+
+export async function getViewerRelationship(
+  viewerId: string,
+  targetId: string,
+  client?: PoolClient,
+): Promise<ViewerRelationship> {
+  const executor = client ?? getPool();
+  const res = await executor.query<{
+    is_following: boolean;
+    is_blocked: boolean;
+  }>(
+    `SELECT
+      EXISTS(SELECT 1 FROM follows WHERE follower_id = $1 AND followee_id = $2) AS is_following,
+      EXISTS(SELECT 1 FROM blocks WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)) AS is_blocked`,
+    [viewerId, targetId],
+  );
+  const row = res.rows[0];
+  return {
+    following: Boolean(row?.is_following),
+    blocked: Boolean(row?.is_blocked),
+  };
+}
+
+export async function checkMediaExists(
+  mediaId: string,
+  client?: PoolClient,
+): Promise<boolean> {
+  const executor = client ?? getPool();
+  const res = await executor.query<{ exists: boolean }>(
+    `SELECT EXISTS(SELECT 1 FROM media WHERE id = $1) AS exists`,
+    [mediaId],
+  );
+  return Boolean(res.rows[0]?.exists);
+}
+
+export async function updateUserProfile(
+  userId: string,
+  updates: {
+    displayName?: string;
+    bio?: string;
+    avatarMediaId?: string | null;
+  },
+  client?: PoolClient,
+): Promise<UserRow> {
+  const executor = client ?? getPool();
+  const setClauses: string[] = ['updated_at = now()'];
+  const values: unknown[] = [];
+  let idx = 1;
+
+  if (updates.displayName !== undefined) {
+    setClauses.push(`display_name = $${idx++}`);
+    values.push(updates.displayName);
+  }
+  if (updates.bio !== undefined) {
+    setClauses.push(`bio = $${idx++}`);
+    values.push(updates.bio);
+  }
+  if (updates.avatarMediaId !== undefined) {
+    setClauses.push(`avatar_media_id = $${idx++}`);
+    values.push(updates.avatarMediaId);
+  }
+
+  values.push(userId);
+  const sql = `
+    UPDATE users
+    SET ${setClauses.join(', ')}
+    WHERE id = $${idx}
+    RETURNING *
+  `;
+  const res = await executor.query<UserRow>(sql, values);
+  const row = res.rows[0];
+  if (!row) {
+    throw new Error('User not found');
+  }
+  return row;
 }

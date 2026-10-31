@@ -162,8 +162,11 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 }
 
 export async function requireActive(req: Request, res: Response, next: NextFunction): Promise<void> {
-  await requireAuth(req, res, () => {
-    if (!req.user) return;
+  await requireAuth(req, res, (err?: unknown) => {
+    if (err) return next(err);
+    if (!req.user) {
+      return next(new AppError(401, 'UNAUTHENTICATED', 'Authentication required'));
+    }
     if (req.user.status === 'suspended') {
       return next(new AppError(403, 'ACCOUNT_SUSPENDED', 'Account is suspended'));
     }
@@ -178,8 +181,11 @@ export async function requireActive(req: Request, res: Response, next: NextFunct
 }
 
 export async function requireAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
-  await requireActive(req, res, () => {
-    if (!req.user) return;
+  await requireActive(req, res, (err?: unknown) => {
+    if (err) return next(err);
+    if (!req.user) {
+      return next(new AppError(401, 'UNAUTHENTICATED', 'Authentication required'));
+    }
     if (req.user.role !== 'admin') {
       return next(new AppError(403, 'FORBIDDEN', 'Admin privileges required'));
     }

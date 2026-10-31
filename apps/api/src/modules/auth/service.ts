@@ -10,7 +10,14 @@ import { RegisterInput, LoginInput } from '@app/shared';
 import { config } from '../../config.js';
 import { withTransaction } from '../../db/tx.js';
 import { AppError } from '../../middleware/errors.js';
-import { createUser, verifyPassword, hashPassword } from '../users/service.js';
+import {
+  createUser,
+  verifyPassword,
+  hashPassword,
+  computeTier,
+  toMeUser,
+  type MeUser,
+} from '../users/service.js';
 import { type UserRow, findUserById } from '../users/repo.js';
 import {
   checkUsernameOrEmailTaken,
@@ -29,57 +36,7 @@ import {
   deleteSessionById,
 } from './repo.js';
 
-export interface MeUser {
-  id: string;
-  username: string;
-  email: string;
-  displayName: string;
-  bio: string;
-  avatarUrl: string | null;
-  role: 'user' | 'admin';
-  status: 'active' | 'suspended' | 'deleted';
-  emailVerified: boolean;
-  score: {
-    q: string;
-    sigma: string;
-    tier: 'trusted' | 'neutral' | 'low';
-  };
-  createdAt: string;
-}
-
-export function computeTier(q: string | number): 'trusted' | 'neutral' | 'low' {
-  const num = typeof q === 'string' ? parseFloat(q) : q;
-  if (num >= config.Q_TRUSTED_MIN) return 'trusted';
-  if (num <= config.Q_LOW_MAX) return 'low';
-  return 'neutral';
-}
-
-export function toMeUser(user: UserRow): MeUser {
-  const qNum = parseFloat(user.q);
-  const qStr = (isNaN(qNum) ? 0 : qNum).toFixed(3);
-  const sigmaNum = parseFloat(user.sigma);
-  const sigmaStr = (isNaN(sigmaNum) ? 0.5 : sigmaNum).toFixed(3);
-
-  return {
-    id: user.id,
-    username: user.username,
-    email: user.email,
-    displayName: user.display_name,
-    bio: user.bio,
-    avatarUrl: user.avatar_media_id
-      ? `${config.S3_PUBLIC_BASE_URL}/${user.avatar_media_id}`
-      : null,
-    role: user.role,
-    status: user.status,
-    emailVerified: Boolean(user.email_verified_at),
-    score: {
-      q: qStr,
-      sigma: sigmaStr,
-      tier: computeTier(qNum),
-    },
-    createdAt: new Date(user.created_at).toISOString(),
-  };
-}
+export { computeTier, toMeUser, type MeUser, type UserRow };
 
 // ---------------------------------------------------------------------------
 // Failed login lockout tracking (SEC-003)

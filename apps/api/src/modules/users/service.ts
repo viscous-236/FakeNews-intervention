@@ -1,13 +1,25 @@
 /**
- * apps/api/src/modules/users/service.ts (TASK-016)
+ * apps/api/src/modules/users/service.ts (TASK-016, TASK-040)
  *
- * User domain service rules (GUD-001, GUD-002, SEC-001).
+ * User domain service rules (GUD-001, GUD-002, SEC-001, RUL-023).
  */
 
 import * as argon2 from 'argon2';
+import { UpdateMeInput } from '@app/shared';
 import { config } from '../../config.js';
 import { type PoolClient } from '../../db/pool.js';
-import { insertUser, type UserRow } from './repo.js';
+import { AppError } from '../../middleware/errors.js';
+import {
+  insertUser,
+  findUserByUsername,
+  getUserCounts,
+  getViewerRelationship,
+  checkMediaExists,
+  updateUserProfile,
+  type UserRow,
+  type UserCounts,
+  type ViewerRelationship,
+} from './repo.js';
 
 export interface CreateUserInput {
   username: string;
@@ -17,6 +29,71 @@ export interface CreateUserInput {
   sigma?: number;
   role?: 'user' | 'admin';
   emailVerified?: boolean;
+}
+
+export interface MeUser {
+  id: string;
+  username: string;
+  email: string;
+  displayName: string;
+  bio: string;
+  avatarUrl: string | null;
+  role: 'user' | 'admin';
+  status: 'active' | 'suspended' | 'deleted';
+  emailVerified: boolean;
+  score: {
+    q: string;
+    sigma: string;
+    tier: 'trusted' | 'neutral' | 'low';
+  };
+  createdAt: string;
+}
+
+export interface PublicUserProfile {
+  id: string;
+  username: string;
+  displayName: string;
+  bio: string;
+  avatarUrl: string | null;
+  tier: 'trusted' | 'neutral' | 'low';
+  q?: string;
+  counts: UserCounts;
+  viewer: ViewerRelationship;
+  createdAt: string;
+}
+
+export function computeTier(q: string | number): 'trusted' | 'neutral' | 'low' {
+  const num = typeof q === 'string' ? parseFloat(q) : q;
+  if (num >= config.Q_TRUSTED_MIN) return 'trusted';
+  if (num <= config.Q_LOW_MAX) return 'low';
+  return 'neutral';
+}
+
+export function toMeUser(user: UserRow): MeUser {
+  const qNum = parseFloat(user.q);
+  const qStr = (isNaN(qNum) ? 0 : qNum).toFixed(3);
+  const sigmaNum = parseFloat(user.sigma);
+  const sigmaStr = (isNaN(sigmaNum) ? 0.5 : sigmaNum).toFixed(3);
+
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    displayName: user.display_name,
+    bio: user.bio,
+    avatarUrl: user.avatar_media_id
+      ? `${config.S3_PUBLIC_BASE_URL}/${user.avatar_media_id}`
+      : null,
+    role: user.role,
+    status: user.status,
+    emailVerified: Boolean(user.email_verified_at),
+    score: {
+      q: qStr,
+      sigma: sigmaStr,
+      tier: computeTier(qNum),
+    },
+    createdAt: new Date(user.created_at).toISOString(),
+  };
 }
 
 /**
@@ -71,4 +148,71 @@ export async function createUser(
     },
     client,
   );
+}
+
+/**
+ * Get public user profile with RUL-023 score visibility.
+ */
+export async function getUserProfile(
+  username: string,
+  viewer?: { id: string; role: 'user' | 'admin' },
+): Promise<PublicUserProfile> {
+  const user = await findUserByUsername(username);
+  if (!user || user.status === 'deleted' || user.deleted_at !== null) {
+    throw new AppError(404, 'NOT_FOUND', 'User not found');
+  }
+
+  const counts = await getUserCounts(user.id);
+  const viewerRelationship = viewer
+    ? await getViewerRelationship(viewer.id, user.id)
+    : { following: false, blocked: false };
+
+  // RUL-023: q is visible only to the user and admins when PUBLIC_SCORE_VISIBILITY = 'tier_only';
+  // 'full' makes q public (sigma stays private).
+  const isSelf = viewer?.id === user.id;
+  const isAdmin = viewer?.role === 'admin';
+  const showQ = config.PUBLIC_SCORE_VISIBILITY === 'full' || isSelf || isAdmin;
+
+  const qNum = parseFloat(user.q);
+  const qStr = (isNaN(qNum) ? 0 : qNum).toFixed(3);
+
+  const profile: PublicUserProfile = {
+    id: user.id,
+    username: user.username,
+    displayName: user.display_name,
+    bio: user.bio,
+    avatarUrl: user.avatar_media_id
+      ? `${config.S3_PUBLIC_BASE_URL}/${user.avatar_media_id}`
+      : null,
+    tier: computeTier(qNum),
+    ...(showQ ? { q: qStr } : {}),
+    counts,
+    viewer: viewerRelationship,
+    createdAt: new Date(user.created_at).toISOString(),
+  };
+
+  return profile;
+}
+
+/**
+ * Update current user profile (PATCH /users/me).
+ */
+export async function updateProfile(
+  userId: string,
+  input: UpdateMeInput,
+): Promise<MeUser> {
+  if (input.avatarMediaId) {
+    const exists = await checkMediaExists(input.avatarMediaId);
+    if (!exists) {
+      throw new AppError(400, 'VALIDATION_ERROR', 'Avatar media not found');
+    }
+  }
+
+  const updated = await updateUserProfile(userId, {
+    displayName: input.displayName,
+    bio: input.bio,
+    avatarMediaId: input.avatarMediaId,
+  });
+
+  return toMeUser(updated);
 }
