@@ -8,7 +8,7 @@
  *   - 57014 (query_canceled / statement_timeout) -> UNAVAILABLE (503)
  */
 
-import { AppError } from '../app.js';
+import { AppError } from '../middleware/appError.js';
 
 interface PgDatabaseError extends Error {
   code?: string;

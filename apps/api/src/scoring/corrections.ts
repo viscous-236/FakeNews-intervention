@@ -9,7 +9,7 @@
  */
 
 import { type PoolClient } from '../db/pool.js';
-import { AppError } from '../app.js';
+import { AppError } from '../middleware/appError.js';
 import { createEventsForAssessment, type AssessmentRecord } from './events.js';
 
 export interface OldAssessmentParam {

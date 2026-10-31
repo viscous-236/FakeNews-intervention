@@ -11,7 +11,7 @@
 import Decimal from 'decimal.js';
 import { type PoolClient } from '../db/pool.js';
 import { withTransaction } from '../db/tx.js';
-import { AppError } from '../app.js';
+import { AppError } from '../middleware/appError.js';
 import { computeR, applyUpdate } from './pure.js';
 
 export interface WaveActor {

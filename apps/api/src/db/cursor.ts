@@ -5,7 +5,7 @@
  * Format: base64url of `<ISO 8601 created_at>|<uuid id>`
  */
 
-import { AppError } from '../app.js';
+import { AppError } from '../middleware/appError.js';
 
 export interface DecodedCursor {
   createdAt: Date;

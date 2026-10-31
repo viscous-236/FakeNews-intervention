@@ -9,27 +9,9 @@ import { randomUUID } from 'crypto';
 import { ZodError } from 'zod';
 import { logger } from '../logger.js';
 import { isPgError, mapPgError } from '../db/errors.js';
+import { AppError, ErrorEnvelope } from './appError.js';
 
-export interface ErrorEnvelope {
-  error: {
-    code: string;
-    message: string;
-    details?: unknown;
-    requestId: string;
-  };
-}
-
-export class AppError extends Error {
-  constructor(
-    public readonly statusCode: number,
-    public readonly code: string,
-    message: string,
-    public readonly details?: unknown,
-  ) {
-    super(message);
-    this.name = 'AppError';
-  }
-}
+export { AppError, ErrorEnvelope };
 
 export function notFoundHandler(req: Request, res: Response): void {
   const requestId = (req as Request & { id?: string }).id ?? randomUUID();

@@ -6,12 +6,14 @@
  * createApp() directly and use supertest.
  */
 
-import express, { NextFunction, Request, Response } from 'express';
+import express, { NextFunction, Request, Response, Router } from 'express';
 import { randomUUID } from 'crypto';
 import cookieParser from 'cookie-parser';
 import pinoHttp from 'pino-http';
 import { logger } from './logger.js';
+import { config } from './config.js';
 import { healthRouter } from './modules/health/routes.js';
+import { authRouter } from './modules/auth/routes.js';
 import { securityMiddleware } from './middleware/security.js';
 import { originCheck } from './middleware/originCheck.js';
 import { errorHandler, notFoundHandler, AppError, ErrorEnvelope } from './middleware/errors.js';
@@ -23,6 +25,9 @@ export { AppError, ErrorEnvelope };
 // ---------------------------------------------------------------------------
 export function createApp(): express.Application {
   const app = express();
+
+  // ---- Trust proxy (Section 1.9) -------------------------------------------
+  app.set('trust proxy', config.TRUST_PROXY);
 
   // ---- Request ID ----------------------------------------------------------
   app.use((req: Request, _res: Response, next: NextFunction): void => {
@@ -55,11 +60,13 @@ export function createApp(): express.Application {
   // ---- Body parsing --------------------------------------------------------
   app.use(express.json({ limit: '100kb' }));
 
-  // ---- Routes --------------------------------------------------------------
+  // ---- Health check (root level) -------------------------------------------
   app.use(healthRouter);
 
-  // NOTE: Additional routers (auth, posts, etc.) are mounted in later tasks
-  //       under /api/v1.
+  // ---- API v1 Router -------------------------------------------------------
+  const apiV1 = Router();
+  apiV1.use(authRouter);
+  app.use('/api/v1', apiV1);
 
   // ---- 404 handler ---------------------------------------------------------
   app.use(notFoundHandler);
