@@ -1,7 +1,7 @@
 /**
- * packages/shared/src/schemas/auth.ts (TASK-038)
+ * packages/shared/src/schemas/auth.ts (TASK-038, TASK-039)
  *
- * Strict validation schemas for authentication endpoints.
+ * Strict validation schemas for authentication and token endpoints.
  */
 
 import { z } from 'zod';
@@ -38,3 +38,43 @@ export const loginSchema = z
   .strict();
 
 export type LoginInput = z.infer<typeof loginSchema>;
+
+export const verifyEmailSchema = z
+  .object({
+    token: z.string().trim().min(1, 'Token is required'),
+  })
+  .strict();
+
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+
+export const forgotPasswordSchema = z
+  .object({
+    email: z.string().trim().email('Invalid email address').max(255),
+  })
+  .strict();
+
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+
+export const resetPasswordSchema = z
+  .object({
+    token: z.string().trim().min(1, 'Token is required'),
+    password: z
+      .string()
+      .min(10, 'Password must be at least 10 characters long')
+      .max(128, 'Password must not exceed 128 characters'),
+  })
+  .strict();
+
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: z
+      .string()
+      .min(10, 'New password must be at least 10 characters long')
+      .max(128, 'New password must not exceed 128 characters'),
+  })
+  .strict();
+
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;

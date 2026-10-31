@@ -46,6 +46,7 @@ export const globalLimiter = createLimiter(60 * 1000, 300);
 export const loginLimiter = createLimiter(60 * 1000, 10, 'Login rate limit exceeded');
 export const registerLimiter = createLimiter(60 * 60 * 1000, 5, 'Register rate limit exceeded');
 export const forgotPasswordLimiter = createLimiter(60 * 60 * 1000, 5, 'Forgot password rate limit exceeded');
+export const resendVerificationLimiter = createLimiter(60 * 60 * 1000, 3, 'Resend verification limit exceeded', true);
 
 // Domain rate limits (keyed by user id when authenticated, else IP)
 export const postsLimiter = createLimiter(60 * 60 * 1000, 20, 'Posts rate limit exceeded', true);
