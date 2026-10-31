@@ -19,7 +19,7 @@ import fs from 'fs';
 
 export async function setup(): Promise<void> {
   const databaseUrl =
-    process.env['DATABASE_URL'] ?? 'postgresql://postgres:postgres@localhost:5432/app_test';
+    process.env['DATABASE_URL'] ?? 'postgresql://postgres:postgres@localhost:5433/app_test';
 
   const apiRoot = path.resolve(__dirname, '../../');
   const migrationsDir = path.join(apiRoot, 'src/db/migrations');

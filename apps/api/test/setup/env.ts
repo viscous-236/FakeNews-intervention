@@ -12,7 +12,8 @@
  */
 
 // Database — real PostgreSQL 16 (docker-compose)
-process.env['DATABASE_URL'] ??= 'postgresql://postgres:postgres@localhost:5432/app_test';
+// Port 5433 avoids collision with Homebrew postgresql@18 which owns localhost:5432.
+process.env['DATABASE_URL'] ??= 'postgresql://postgres:postgres@localhost:5433/app_test';
 
 // Detector — real FastAPI container (docker-compose)
 process.env['DETECTOR_URL'] ??= 'http://localhost:8001';

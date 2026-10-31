@@ -19,7 +19,7 @@ export function getTestPool(): Pool {
   if (!_pool) {
     _pool = new Pool({
       connectionString:
-        process.env['DATABASE_URL'] ?? 'postgresql://postgres:postgres@localhost:5432/app_test',
+        process.env['DATABASE_URL'] ?? 'postgresql://postgres:postgres@localhost:5433/app_test',
       max: 5,
       statement_timeout: 10_000,
     });
