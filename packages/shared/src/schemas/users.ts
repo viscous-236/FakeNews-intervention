@@ -27,3 +27,9 @@ export const updateMeSchema = z
   .strict();
 
 export type UpdateMeInput = z.infer<typeof updateMeSchema>;
+
+export const deleteMeSchema = z.object({
+  password: z.string().min(1, 'Password is required'),
+});
+
+export type DeleteMeInput = z.infer<typeof deleteMeSchema>;

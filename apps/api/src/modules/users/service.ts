@@ -8,6 +8,7 @@ import * as argon2 from 'argon2';
 import { UpdateMeInput } from '@app/shared';
 import { config } from '../../config.js';
 import { type PoolClient } from '../../db/pool.js';
+import { withTransaction } from '../../db/tx.js';
 import { AppError } from '../../middleware/errors.js';
 import {
   insertUser,
@@ -16,9 +17,12 @@ import {
   getViewerRelationship,
   checkMediaExists,
   updateUserProfile,
+  anonymizeUser,
+  fetchUserExportData,
   type UserRow,
   type UserCounts,
   type ViewerRelationship,
+  type UserExportData,
 } from './repo.js';
 
 export interface CreateUserInput {
@@ -223,4 +227,29 @@ export async function updateProfile(
   });
 
   return toMeUser(updated);
+}
+
+/**
+ * Delete account (DELETE /users/me per RUL-022, SEC-014).
+ * Verifies password, anonymizes PII and purges active sessions.
+ */
+export async function deleteAccount(
+  user: UserRow,
+  password: string,
+): Promise<void> {
+  const valid = await verifyPassword(user.password_hash, password);
+  if (!valid) {
+    throw new AppError(401, 'INVALID_CREDENTIALS', 'Incorrect password');
+  }
+
+  await withTransaction(async (tx) => {
+    await anonymizeUser(user.id, tx);
+  });
+}
+
+/**
+ * Export account data (GET /users/me/export per line 878).
+ */
+export async function exportAccount(user: UserRow): Promise<UserExportData> {
+  return fetchUserExportData(user, config.S3_PUBLIC_BASE_URL);
 }
