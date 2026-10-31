@@ -17,6 +17,7 @@
   "dependencies": {
     "@app/shared": "*",
     "argon2": "^0.45.1",
+    "decimal.js": "^10.6.0",
     "express": "^5.0.0",
     "pg": "^8.13.1",
     "pino": "^9.5.0",
