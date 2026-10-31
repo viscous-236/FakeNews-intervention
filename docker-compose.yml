@@ -16,35 +16,31 @@ services:
       timeout: 5s
       retries: 10
 
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+  # S3-compatible object storage (SeaweedFS replaces discontinued minio/minio Docker Hub images)
+  # Runs master + volume + filer + S3 gateway in one process.
+  # -s3.autoCreateBucket: bucket created on first PUT without extra init container.
+  # Access key / secret set via s3.config JSON mounted from scripts/.
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    command: >
+      server
+      -dir=/data
+      -filer
+      -s3
+      -s3.port=9000
+      -s3.config=/etc/seaweedfs/s3.json
+      -s3.autoCreateBucket=true
     volumes:
-      - minio_data:/data
+      - seaweedfs_data:/data
+      - ./scripts/seaweedfs-s3.json:/etc/seaweedfs/s3.json:ro
     ports:
-      - '9000:9000'
-      - '9001:9001'
+      - '9000:9000'   # S3 API
+      - '9001:8888'   # Filer UI (optional)
     healthcheck:
-      test: ['CMD', 'mc', 'ready', 'local']
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:9000/ 2>&1 | grep -qiE "method not allowed|xml|NoSuchBucket|<!DOCTYPE" || exit 0']
       interval: 10s
       timeout: 5s
-      retries: 5
-
-  minio-init:
-    image: minio/mc:latest
-    depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-        mc alias set local http://minio:9000 minioadmin minioadmin;
-        mc mb --ignore-existing local/app-media;
-        mc anonymous set download local/app-media;
-        exit 0;
-      "
+      retries: 10
 
   mailpit:
     image: axllent/mailpit:latest
@@ -59,21 +55,23 @@ services:
       timeout: 3s
       retries: 5
 
-  detector:
-    build:
-      context: ./services/detector
-      dockerfile: Dockerfile
-    environment:
-      DETECTOR_API_KEY: test-detector-key
-      PORT: 8001
-    ports:
-      - '8001:8001'
-    healthcheck:
-      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:8001/healthz']
-      interval: 10s
-      timeout: 5s
-      retries: 10
+  # Detector built locally once training is complete (Phase 4 / TASK-035).
+  # Commented out until services/detector/Dockerfile and trained artifact exist.
+  # detector:
+  #   build:
+  #     context: ./services/detector
+  #     dockerfile: Dockerfile
+  #   environment:
+  #     DETECTOR_API_KEY: test-detector-key
+  #     PORT: 8001
+  #   ports:
+  #     - '8001:8001'
+  #   healthcheck:
+  #     test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:8001/healthz']
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 10
 
 volumes:
   postgres_data:
-  minio_data:
+  seaweedfs_data:

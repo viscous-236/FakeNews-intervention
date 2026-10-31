@@ -28,6 +28,24 @@ export const copy = {
     low: 'Low credibility',
   } as const,
 
+  // Event kinds human-readable labels (v2.0)
+  eventKind: {
+    RESPONSIBLE_POST: 'Authored verified post (+1)',
+    RESPONSIBLE_RESHARE: 'Shared verified post (+1)',
+    VALID_REPORT: 'Reported false post (+1)',
+    MISINFO_POST: 'Authored false post (-1)',
+    MISINFO_RESHARE: 'Shared false post (-1)',
+    MISINFO_LIKE: 'Liked false post (-1)',
+    REVERSAL: 'Reversal adjustment (+1 / -1)',
+  } as const,
+
+  // Void reasons
+  voidReason: {
+    interaction_retracted: 'Voided (interaction retracted before wave finalization)',
+    cap_exceeded: 'Voided (per-wave cap exceeded)',
+    assessment_superseded: 'Voided (superseded by new assessment)',
+  } as const,
+
   // Generic
   loading: 'Loading…',
   error: 'Something went wrong. Please try again.',

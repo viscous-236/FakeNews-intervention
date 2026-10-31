@@ -141,13 +141,16 @@ export const assessmentSourceSchema = z.enum(assessmentSourceValues);
 // ---------------------------------------------------------------------------
 export const reputationEventKindValues = [
   'RESPONSIBLE_POST',
+  'RESPONSIBLE_RESHARE',
   'VALID_REPORT',
   'MISINFO_POST',
   'MISINFO_RESHARE',
+  'MISINFO_LIKE',
   'REVERSAL',
 ] as const;
 export type ReputationEventKind = (typeof reputationEventKindValues)[number];
 export const reputationEventKindSchema = z.enum(reputationEventKindValues);
+export const EVENT_KINDS = reputationEventKindValues;
 
 // ---------------------------------------------------------------------------
 // reputation_events.status
@@ -155,6 +158,18 @@ export const reputationEventKindSchema = z.enum(reputationEventKindValues);
 export const reputationEventStatusValues = ['eligible', 'held', 'voided', 'counted'] as const;
 export type ReputationEventStatus = (typeof reputationEventStatusValues)[number];
 export const reputationEventStatusSchema = z.enum(reputationEventStatusValues);
+
+// ---------------------------------------------------------------------------
+// reputation_events.void_reason
+// ---------------------------------------------------------------------------
+export const voidReasonValues = [
+  'cap_exceeded',
+  'assessment_superseded',
+  'interaction_retracted',
+] as const;
+export type VoidReason = (typeof voidReasonValues)[number];
+export const voidReasonSchema = z.enum(voidReasonValues);
+export const VOID_REASONS = voidReasonValues;
 
 // ---------------------------------------------------------------------------
 // appeals.status

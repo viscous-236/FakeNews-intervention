@@ -32,6 +32,9 @@ describe('parseConfig()', () => {
     expect(cfg.DATABASE_URL).toBe('postgresql://postgres:postgres@localhost:5432/app_test');
     expect(cfg.PORT).toBe(3000);
     expect(cfg.SIGMA_DEFAULT).toBe(0.5);
+    expect(cfg.LIKE_PENALTY_ENABLED).toBe(true);
+    expect(cfg.RESPONSIBLE_RESHARE_REWARD_ENABLED).toBe(true);
+    expect(cfg.MAX_RESPONSIBLE_RESHARE_EVENTS_PER_WAVE).toBe(5);
   });
 
   it('exits with readable error when DATABASE_URL is missing', () => {
