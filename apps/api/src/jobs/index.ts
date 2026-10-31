@@ -5,4 +5,5 @@
  */
 
 export * from './waveScheduler.js';
+export * from './mediaCleanup.js';
 export * from '../modules/email/outbox.js';
