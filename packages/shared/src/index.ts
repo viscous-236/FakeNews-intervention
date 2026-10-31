@@ -6,3 +6,4 @@ export * from './schemas/auth.js';
 export * from './schemas/users.js';
 export * from './schemas/notifications.js';
 export * from './schemas/posts.js';
+export * from './schemas/score.js';

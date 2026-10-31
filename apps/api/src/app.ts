@@ -19,6 +19,7 @@ import { mediaRouter } from './modules/media/routes.js';
 import { notificationsRouter } from './modules/notifications/routes.js';
 import { postsRouter } from './modules/posts/routes.js';
 import { feedRouter } from './modules/feed/routes.js';
+import { scoreRouter } from './modules/score/routes.js';
 import { securityMiddleware } from './middleware/security.js';
 import { originCheck } from './middleware/originCheck.js';
 import { errorHandler, notFoundHandler, AppError, ErrorEnvelope } from './middleware/errors.js';
@@ -76,6 +77,7 @@ export function createApp(): express.Application {
   apiV1.use(notificationsRouter);
   apiV1.use(postsRouter);
   apiV1.use(feedRouter);
+  apiV1.use(scoreRouter);
   app.use('/api/v1', apiV1);
 
   // ---- 404 handler ---------------------------------------------------------
