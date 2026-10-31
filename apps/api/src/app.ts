@@ -16,6 +16,7 @@ import { healthRouter } from './modules/health/routes.js';
 import { authRouter } from './modules/auth/routes.js';
 import { usersRouter } from './modules/users/routes.js';
 import { mediaRouter } from './modules/media/routes.js';
+import { notificationsRouter } from './modules/notifications/routes.js';
 import { securityMiddleware } from './middleware/security.js';
 import { originCheck } from './middleware/originCheck.js';
 import { errorHandler, notFoundHandler, AppError, ErrorEnvelope } from './middleware/errors.js';
@@ -70,6 +71,7 @@ export function createApp(): express.Application {
   apiV1.use(authRouter);
   apiV1.use(usersRouter);
   apiV1.use(mediaRouter);
+  apiV1.use(notificationsRouter);
   app.use('/api/v1', apiV1);
 
   // ---- 404 handler ---------------------------------------------------------
