@@ -31,6 +31,14 @@ export interface CreateUserInput {
   emailVerified?: boolean;
 }
 
+export interface UserSummary {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  tier: 'trusted' | 'neutral' | 'low';
+}
+
 export interface MeUser {
   id: string;
   username: string;

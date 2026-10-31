@@ -17,6 +17,7 @@ import { authRouter } from './modules/auth/routes.js';
 import { usersRouter } from './modules/users/routes.js';
 import { mediaRouter } from './modules/media/routes.js';
 import { notificationsRouter } from './modules/notifications/routes.js';
+import { postsRouter } from './modules/posts/routes.js';
 import { securityMiddleware } from './middleware/security.js';
 import { originCheck } from './middleware/originCheck.js';
 import { errorHandler, notFoundHandler, AppError, ErrorEnvelope } from './middleware/errors.js';
@@ -72,6 +73,7 @@ export function createApp(): express.Application {
   apiV1.use(usersRouter);
   apiV1.use(mediaRouter);
   apiV1.use(notificationsRouter);
+  apiV1.use(postsRouter);
   app.use('/api/v1', apiV1);
 
   // ---- 404 handler ---------------------------------------------------------

@@ -5,3 +5,4 @@ export * from './enums.js';
 export * from './schemas/auth.js';
 export * from './schemas/users.js';
 export * from './schemas/notifications.js';
+export * from './schemas/posts.js';
