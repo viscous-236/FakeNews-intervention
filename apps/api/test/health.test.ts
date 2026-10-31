@@ -35,7 +35,10 @@ describe('404 handler', () => {
   });
 
   it('unknown POST route returns NOT_FOUND error envelope', async () => {
-    const res = await request.post('/api/v1/nonexistent').send({});
+    const res = await request
+      .post('/api/v1/nonexistent')
+      .set('Origin', 'http://localhost:5173')
+      .send({});
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe('NOT_FOUND');
   });

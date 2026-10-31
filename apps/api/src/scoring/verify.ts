@@ -12,7 +12,7 @@
 
 import Decimal from 'decimal.js';
 import { getPool, type PoolClient, type Pool } from '../db/pool.js';
-import { computeR, verifyUserHistory, type PureLedgerRow } from './pure.js';
+import { verifyUserHistory, type PureLedgerRow } from './pure.js';
 
 export interface ScoreIssue {
   invariant: string;

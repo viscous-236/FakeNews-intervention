@@ -8,36 +8,15 @@
 
 import express, { NextFunction, Request, Response } from 'express';
 import { randomUUID } from 'crypto';
+import cookieParser from 'cookie-parser';
 import pinoHttp from 'pino-http';
-import { logger } from './logger';
-import { healthRouter } from './modules/health/routes';
+import { logger } from './logger.js';
+import { healthRouter } from './modules/health/routes.js';
+import { securityMiddleware } from './middleware/security.js';
+import { originCheck } from './middleware/originCheck.js';
+import { errorHandler, notFoundHandler, AppError, ErrorEnvelope } from './middleware/errors.js';
 
-// ---------------------------------------------------------------------------
-// Error envelope type
-// ---------------------------------------------------------------------------
-export interface ErrorEnvelope {
-  error: {
-    code: string;
-    message: string;
-    details?: unknown;
-    requestId: string;
-  };
-}
-
-// ---------------------------------------------------------------------------
-// App-level error class
-// ---------------------------------------------------------------------------
-export class AppError extends Error {
-  constructor(
-    public readonly statusCode: number,
-    public readonly code: string,
-    message: string,
-    public readonly details?: unknown,
-  ) {
-    super(message);
-    this.name = 'AppError';
-  }
-}
+export { AppError, ErrorEnvelope };
 
 // ---------------------------------------------------------------------------
 // Factory
@@ -50,6 +29,15 @@ export function createApp(): express.Application {
     (req as Request & { id: string }).id = randomUUID();
     next();
   });
+
+  // ---- Security headers (Helmet & CSP) -------------------------------------
+  app.use(securityMiddleware());
+
+  // ---- Cookie parser -------------------------------------------------------
+  app.use(cookieParser());
+
+  // ---- Origin check (CSRF defense for non-GET/HEAD) ------------------------
+  app.use(originCheck);
 
   // ---- Structured logging --------------------------------------------------
   app.use(
@@ -70,51 +58,14 @@ export function createApp(): express.Application {
   // ---- Routes --------------------------------------------------------------
   app.use(healthRouter);
 
-  // NOTE: Additional routers (auth, posts, etc.) are mounted in later phases.
-  //       They will be registered here under /api/v1.
+  // NOTE: Additional routers (auth, posts, etc.) are mounted in later tasks
+  //       under /api/v1.
 
   // ---- 404 handler ---------------------------------------------------------
-  app.use((_req: Request, res: Response): void => {
-    const requestId = (_req as Request & { id?: string }).id ?? randomUUID();
-    const body: ErrorEnvelope = {
-      error: {
-        code: 'NOT_FOUND',
-        message: 'The requested resource was not found.',
-        requestId,
-      },
-    };
-    res.status(404).json(body);
-  });
+  app.use(notFoundHandler);
 
   // ---- Central error handler -----------------------------------------------
-  // Express 5 passes errors with 4 parameters; must have exactly 4.
-  app.use((err: unknown, req: Request, res: Response, _next: NextFunction): void => {
-    const requestId = (req as Request & { id?: string }).id ?? randomUUID();
-
-    if (err instanceof AppError) {
-      const body: ErrorEnvelope = {
-        error: {
-          code: err.code,
-          message: err.message,
-          ...(err.details !== undefined ? { details: err.details } : {}),
-          requestId,
-        },
-      };
-      res.status(err.statusCode).json(body);
-      return;
-    }
-
-    // Unexpected error
-    logger.error({ err, requestId }, 'Unhandled error');
-    const body: ErrorEnvelope = {
-      error: {
-        code: 'INTERNAL',
-        message: 'An unexpected error occurred.',
-        requestId,
-      },
-    };
-    res.status(500).json(body);
-  });
+  app.use(errorHandler);
 
   return app;
 }

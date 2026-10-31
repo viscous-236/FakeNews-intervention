@@ -36,6 +36,7 @@ services/detector/data/
 # OS
 .DS_Store
 Thumbs.db
+opencode.jsonc
 
 # Editor
 .vscode/

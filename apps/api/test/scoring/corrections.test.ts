@@ -428,7 +428,7 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
     const postId = await createPost(author.id);
 
     // User D reshares BEFORE any assessment (explicit past timestamp to avoid clock collisions)
-    const reshareD = (
+    const _reshareD = (
       await pool.query<{ id: string }>(
         `INSERT INTO posts (author_id, kind, reshare_of_post_id, author_tier_at_post, created_at)
          VALUES ($1, 'reshare', $2, 'neutral', now() - interval '10 seconds') RETURNING id`,
@@ -717,7 +717,7 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
     for (let k = 1; k <= 6; k++) {
       const postId = await createPost(otherAuthor.id);
       await withTransaction(async (tx) => {
-        const aRes = await tx.query<AssessmentRecord>(
+        const _aRes = await tx.query<AssessmentRecord>(
           `INSERT INTO assessments (post_id, post_revision, verdict, source, decided_by, rationale)
            VALUES ($1, 1, 'real', 'admin', $2, 'Admin real assessment verified')
            RETURNING id, post_id, post_revision, verdict, source, decided_by, rationale, created_at`,
