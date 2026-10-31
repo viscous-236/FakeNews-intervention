@@ -41,5 +41,5 @@ export async function closePool(): Promise<void> {
   }
 }
 
-/** Expose a PoolClient type alias for convenience. */
-export type { PoolClient };
+/** Expose Pool and PoolClient type aliases for convenience. */
+export type { Pool, PoolClient };
