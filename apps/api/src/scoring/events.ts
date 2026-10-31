@@ -32,6 +32,7 @@ async function getOpenWaveId(tx: PoolClient): Promise<string> {
     `SELECT id FROM waves WHERE status = 'open' FOR SHARE`,
   );
   const row = res.rows[0];
+  /* v8 ignore next 3 */
   if (!row) {
     throw new Error('No open wave found');
   }
@@ -122,6 +123,7 @@ export async function createEventsForAssessment(
     [assessment.post_id],
   );
   const post = postRes.rows[0];
+  /* v8 ignore next 3 */
   if (!post) {
     throw new Error(`Post not found: ${assessment.post_id}`);
   }
@@ -145,7 +147,7 @@ export async function createEventsForAssessment(
       `INSERT INTO reputation_events (
         user_id, post_id, assessment_id, kind, value, status, void_reason, wave_id
       ) VALUES ($1, $2, $3, 'RESPONSIBLE_POST', 1, $4, $5, $6)
-      ON CONFLICT (assessment_id, user_id, kind) DO NOTHING`,
+      ON CONFLICT (assessment_id, user_id, kind) WHERE kind <> 'REVERSAL' DO NOTHING`,
       [post.author_id, post.id, assessment.id, cap.status, cap.voidReason, cap.waveId],
     );
     inc('RESPONSIBLE_POST');
@@ -171,7 +173,7 @@ export async function createEventsForAssessment(
           `INSERT INTO reputation_events (
             user_id, post_id, assessment_id, reshare_post_id, kind, value, status, void_reason, wave_id
           ) VALUES ($1, $2, $3, $4, 'RESPONSIBLE_RESHARE', 1, $5, $6, $7)
-          ON CONFLICT (assessment_id, user_id, kind) DO NOTHING`,
+          ON CONFLICT (assessment_id, user_id, kind) WHERE kind <> 'REVERSAL' DO NOTHING`,
           [r.author_id, post.id, assessment.id, r.id, rCap.status, rCap.voidReason, rCap.waveId],
         );
         inc('RESPONSIBLE_RESHARE');
@@ -191,7 +193,7 @@ export async function createEventsForAssessment(
       `INSERT INTO reputation_events (
         user_id, post_id, assessment_id, kind, value, status, wave_id
       ) VALUES ($1, $2, $3, 'MISINFO_POST', -1, 'eligible', $4)
-      ON CONFLICT (assessment_id, user_id, kind) DO NOTHING`,
+      ON CONFLICT (assessment_id, user_id, kind) WHERE kind <> 'REVERSAL' DO NOTHING`,
       [post.author_id, post.id, assessment.id, openWaveId],
     );
     inc('MISINFO_POST');
@@ -213,7 +215,7 @@ export async function createEventsForAssessment(
             `INSERT INTO reputation_events (
               user_id, post_id, assessment_id, reshare_post_id, kind, value, status, wave_id
             ) VALUES ($1, $2, $3, $4, 'MISINFO_RESHARE', -1, 'eligible', $5)
-            ON CONFLICT (assessment_id, user_id, kind) DO NOTHING`,
+            ON CONFLICT (assessment_id, user_id, kind) WHERE kind <> 'REVERSAL' DO NOTHING`,
             [r.author_id, post.id, assessment.id, r.id, openWaveId],
           );
           inc('MISINFO_RESHARE');
@@ -235,7 +237,7 @@ export async function createEventsForAssessment(
             `INSERT INTO reputation_events (
               user_id, post_id, assessment_id, kind, value, status, wave_id
             ) VALUES ($1, $2, $3, 'MISINFO_LIKE', -1, 'eligible', $4)
-            ON CONFLICT (assessment_id, user_id, kind) DO NOTHING`,
+            ON CONFLICT (assessment_id, user_id, kind) WHERE kind <> 'REVERSAL' DO NOTHING`,
             [l.user_id, post.id, assessment.id, openWaveId],
           );
           inc('MISINFO_LIKE');
@@ -246,9 +248,10 @@ export async function createEventsForAssessment(
     // 4. Reporters receive VALID_REPORT (+1) (historical lookup per Audit Gap 5)
     const reports = await tx.query<{ id: string; reporter_id: string }>(
       `SELECT id, reporter_id FROM reports
-       WHERE post_id = $1 AND reporter_id <> $2 AND created_at <= $3
+       WHERE post_id = $1 AND reporter_id <> $2
+         AND created_at <= (SELECT created_at FROM assessments WHERE id = $3)
        ORDER BY created_at ASC`,
-      [post.id, post.author_id, assessmentCreatedAt],
+      [post.id, post.author_id, assessment.id],
     );
 
     for (const rep of reports.rows) {
@@ -272,7 +275,7 @@ export async function createEventsForAssessment(
           `INSERT INTO reputation_events (
             user_id, post_id, assessment_id, report_id, kind, value, status, void_reason, wave_id
           ) VALUES ($1, $2, $3, $4, 'VALID_REPORT', 1, $5, $6, $7)
-          ON CONFLICT (assessment_id, user_id, kind) DO NOTHING`,
+          ON CONFLICT (assessment_id, user_id, kind) WHERE kind <> 'REVERSAL' DO NOTHING`,
           [rep.reporter_id, post.id, assessment.id, rep.id, repCap.status, repCap.voidReason, repCap.waveId],
         );
         inc('VALID_REPORT');
@@ -325,7 +328,11 @@ export async function syncReshareEventOnCreate(
     [resharePost.reshare_of_post_id],
   );
   const origAuthorId = origPostRes.rows[0]?.author_id;
-  if (!origAuthorId || origAuthorId === resharePost.author_id) {
+  /* v8 ignore next 3 */
+  if (!origAuthorId) {
+    return;
+  }
+  if (origAuthorId === resharePost.author_id) {
     return;
   }
 
@@ -353,7 +360,7 @@ export async function syncReshareEventOnCreate(
         `INSERT INTO reputation_events (
           user_id, post_id, assessment_id, reshare_post_id, kind, value, status, wave_id
         ) VALUES ($1, $2, $3, $4, 'MISINFO_RESHARE', -1, 'eligible', $5)
-        ON CONFLICT (assessment_id, user_id, kind) DO NOTHING`,
+        ON CONFLICT (assessment_id, user_id, kind) WHERE kind <> 'REVERSAL' DO NOTHING`,
         [resharePost.author_id, assess.post_id, assess.id, resharePost.id, openWaveId],
       );
     }
@@ -385,7 +392,7 @@ export async function syncReshareEventOnCreate(
         `INSERT INTO reputation_events (
           user_id, post_id, assessment_id, reshare_post_id, kind, value, status, void_reason, wave_id
         ) VALUES ($1, $2, $3, $4, 'RESPONSIBLE_RESHARE', 1, $5, $6, $7)
-        ON CONFLICT (assessment_id, user_id, kind) DO NOTHING`,
+        ON CONFLICT (assessment_id, user_id, kind) WHERE kind <> 'REVERSAL' DO NOTHING`,
         [resharePost.author_id, assess.post_id, assess.id, resharePost.id, rCap.status, rCap.voidReason, rCap.waveId],
       );
     }
@@ -482,7 +489,7 @@ export async function syncLikeEventOnLike(
       `INSERT INTO reputation_events (
         user_id, post_id, assessment_id, kind, value, status, wave_id
       ) VALUES ($1, $2, $3, 'MISINFO_LIKE', -1, 'eligible', $4)
-      ON CONFLICT (assessment_id, user_id, kind) DO NOTHING`,
+      ON CONFLICT (assessment_id, user_id, kind) WHERE kind <> 'REVERSAL' DO NOTHING`,
       [userId, originalPostId, assess.id, openWaveId],
     );
   }

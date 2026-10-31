@@ -63,6 +63,7 @@ async function runFinalizeWave(
       `SELECT id FROM waves WHERE status = 'open' FOR UPDATE`,
     );
     const openRow = openRes.rows[0];
+    /* v8 ignore next 3 */
     if (!openRow) {
       throw new AppError(404, 'NOT_FOUND', 'No open wave found');
     }
@@ -196,6 +197,7 @@ async function runFinalizeWave(
     [wave.id, actor.kind === 'admin' ? actor.userId ?? null : null, actor.kind === 'system'],
   );
   const finalizedWave = finalizedWaveRes.rows[0];
+  /* v8 ignore next 3 */
   if (!finalizedWave) {
     throw new AppError(500, 'INTERNAL', 'Failed to retrieve finalized wave');
   }

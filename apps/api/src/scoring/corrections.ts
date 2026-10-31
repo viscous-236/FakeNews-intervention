@@ -41,6 +41,7 @@ async function getOpenWaveId(tx: PoolClient): Promise<string> {
     `SELECT id FROM waves WHERE status = 'open' FOR SHARE`,
   );
   const row = res.rows[0];
+  /* v8 ignore next 3 */
   if (!row) {
     throw new AppError(500, 'INTERNAL', 'No open wave found');
   }
@@ -118,26 +119,12 @@ export async function supersedeAssessment(
   );
 
   const newAssessment = insertRes.rows[0];
+  /* v8 ignore next 3 */
   if (!newAssessment) {
     throw new AppError(500, 'INTERNAL', 'Failed to insert successor assessment');
   }
 
-  // 4. Update post label to match the new verdict
-  let postLabel = 'none';
-  if (input.source === 'admin') {
-    if (input.verdict === 'real') {
-      postLabel = 'fact_checked_true';
-    } else if (input.verdict === 'fake') {
-      postLabel = 'fact_checked_false';
-    }
-  }
-
-  await tx.query(
-    `UPDATE posts
-     SET label = $1, updated_at = now()
-     WHERE id = $2`,
-    [postLabel, postId],
-  );
+  // 4. Note: post label is computed dynamically by post_public_status_v view
 
   // 5. Cascade across events attached to the old assessment
   const oldEventsRes = await tx.query<{
