@@ -96,6 +96,21 @@ export type DetectionBand = (typeof detectionBandValues)[number];
 export const detectionBandSchema = z.enum(detectionBandValues);
 
 // ---------------------------------------------------------------------------
+// detection_results.error_code
+// ---------------------------------------------------------------------------
+export const detectorErrorCodeValues = [
+  'TIMEOUT',
+  'NETWORK',
+  'HTTP_401',
+  'HTTP_422',
+  'HTTP_5XX',
+  'MALFORMED_RESPONSE',
+  'REQUEST_ID_MISMATCH',
+] as const;
+export type DetectorErrorCode = (typeof detectorErrorCodeValues)[number];
+export const detectorErrorCodeSchema = z.enum(detectorErrorCodeValues);
+
+// ---------------------------------------------------------------------------
 // waves.status
 // ---------------------------------------------------------------------------
 export const waveStatusValues = ['open', 'finalized'] as const;
