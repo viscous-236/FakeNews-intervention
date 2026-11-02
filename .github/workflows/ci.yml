@@ -119,9 +119,20 @@ jobs:
                    mc mb --ignore-existing local/app-media && \
                    mc anonymous set download local/app-media"
 
-      # Detector tests added in TASK-035
-      - name: Start detector (placeholder)
-        run: echo "Detector container started in TASK-034/TASK-035"
+      - name: Build detector image
+        run: docker build --tag fakenews-detector:ci services/detector
+
+      - name: Start detector
+        run: |
+          docker run --detach --name fakenews-detector --network host \
+            --env DETECTOR_API_KEY=test-detector-key \
+            --env PORT=8001 fakenews-detector:ci
+          for attempt in $(seq 1 60); do
+            curl --fail --silent http://127.0.0.1:8001/healthz && exit 0
+            sleep 5
+          done
+          docker logs fakenews-detector
+          exit 1
 
       - name: Run API tests
         run: npm run test -w apps/api
@@ -148,7 +159,7 @@ jobs:
 
   # --------------------------------------------------------------------------
   detector-tests:
-    # (placeholder steps — completed in TASK-035)
+    # Real detector contract and inference tests.
     # --------------------------------------------------------------------------
     name: Detector tests
     runs-on: ubuntu-latest
@@ -160,11 +171,27 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install detector dependencies (placeholder)
-        run: echo "Detector test setup completed in TASK-035"
+      - name: Install detector dependencies
+        working-directory: services/detector
+        run: python -m pip install --upgrade pip && pip install -r requirements-train.txt
 
-      - name: Run detector tests (placeholder)
-        run: echo "Detector tests run in TASK-035"
+      - name: Download detector model
+        working-directory: services/detector
+        env:
+          DETECTOR_API_KEY: test-detector-key
+        run: python scripts/download_model.py
+
+      - name: Run detector tests
+        working-directory: services/detector
+        run: pytest -q
+
+      - name: Ruff
+        working-directory: services/detector
+        run: ruff check .
+
+      - name: Mypy
+        working-directory: services/detector
+        run: mypy app
 
   # --------------------------------------------------------------------------
   audit:
@@ -191,5 +218,9 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: pip-audit (placeholder — completed in TASK-028)
-        run: echo "pip-audit added in TASK-028"
+       - name: Install pip-audit
+         run: python -m pip install pip-audit
+
+       - name: pip-audit
+         working-directory: services/detector
+         run: pip-audit -r requirements.txt

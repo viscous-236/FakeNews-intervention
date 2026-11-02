@@ -7,3 +7,5 @@ export * from './schemas/users.js';
 export * from './schemas/notifications.js';
 export * from './schemas/posts.js';
 export * from './schemas/score.js';
+export * from './schemas/governance.js';
+export * from './schemas/social.js';

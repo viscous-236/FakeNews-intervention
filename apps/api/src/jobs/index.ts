@@ -6,4 +6,6 @@
 
 export * from './waveScheduler.js';
 export * from './mediaCleanup.js';
+export * from './autoReal.js';
+export * from '../detection/worker.js';
 export * from '../modules/email/outbox.js';

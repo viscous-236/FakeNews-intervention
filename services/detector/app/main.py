@@ -156,9 +156,9 @@ async def model_info(
     return ModelInfoResponse(
         model_name=meta.get("model_name", "hamzab-roberta-fake-news-classification"),
         model_version=meta.get("model_version", "unknown"),
-        trained_at=meta.get("download_date", "unknown"),
+        trained_at=meta.get("trained_at", "unknown"),
         dataset=meta.get("dataset_original_author", "unknown"),
-        dataset_sha256=meta.get("weights_sha256", "unknown"),
+        dataset_sha256=meta.get("dataset_sha256", "unknown"),
         label_mapping={str(k): v for k, v in model_module.EXPECTED_LABEL_MAP.items()},
         metrics=meta.get("metrics", {}),
         recommended_thresholds=meta.get("recommended_thresholds", {}),

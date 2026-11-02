@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -48,7 +47,10 @@ def main() -> None:
     try:
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
     except ImportError:
-        print("ERROR: transformers not installed. Run: pip install -r requirements.txt", file=sys.stderr)
+        print(
+            "ERROR: transformers not installed. Run: pip install -r requirements.txt",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
@@ -151,8 +153,15 @@ def main() -> None:
         "fake_class_index": 0,
         "real_class_index": 1,
         "input_format": "<title> {title} <content> {content} <end>",
-        "input_note": "When no separate title is available, title is left empty and full post text is used as content.",
-        "dataset_original_author": "ISOT Fake News Dataset (per model card) or similar; see MODEL_CARD.md",
+        "input_note": (
+            "When no separate title is available, title is left empty and full post text "
+            "is used as content."
+        ),
+        "dataset_original_author": (
+            "ISOT Fake News Dataset (per model card) or similar; see MODEL_CARD.md"
+        ),
+        "dataset_sha256": "unknown",
+        "trained_at": "unknown",
         "download_date": datetime.now(timezone.utc).isoformat(),
         "weights_sha256": weights_sha256,
         "weights_file": weight_file.name if weight_file else None,
@@ -164,7 +173,10 @@ def main() -> None:
         "recommended_thresholds": {
             "fake_high": 0.65,
             "real_low": 0.35,
-            "_note": "Provisional defaults. Run scripts/select_thresholds.py to compute data-driven values."
+            "_note": (
+                "Provisional defaults. Run scripts/select_thresholds.py to compute "
+                "data-driven values."
+            )
         },
     }
 

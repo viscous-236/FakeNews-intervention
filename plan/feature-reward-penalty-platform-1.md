@@ -4,7 +4,7 @@ version: 2.0
 date_created: 2026-10-14
 last_updated: 2026-10-27
 owner: Project owner (undergraduate CS mini project, extended scope)
-status: 'Planned - v2.0 (Post-Audit Update)'
+status: 'In progress - v2.0 audit pass'
 tags: [feature, architecture, full-stack, machine-learning, scoring, governance]
 ---
 
@@ -1206,14 +1206,14 @@ Execution rules: complete tasks in numeric order within a phase; a phase may sta
 
 | Task | Description | Completed | Date |
 |---|---|---|---|
-| TASK-020 | Implement `apps/api/src/scoring/pure.ts` (`computeR`, `applyUpdate`, `foldHistory`, `decomposedScore`, `verifyUserHistory` per Section 1.5). Implement unit tests TEST-001 through TEST-012 in `apps/api/test/scoring/pure.test.ts`. | | |
-| TASK-021 | Implement `apps/api/src/scoring/events.ts`: `createEventsForAssessment(tx, assessment)`, `syncReshareEventOnCreate(tx, reshare)`, `retractReshareEventOnDelete(tx, userId, originalPostId)`, `syncLikeEventOnLike(tx, userId, originalPostId)`, and `retractLikeEventOnUnlike(tx, userId, originalPostId)` implementing RUL-002–RUL-005, RUL-007, RUL-015 (Good-Faith Window exemption and historical reporter lookup), RUL-019, and RUL-032. Lock the open wave with `FOR SHARE`. | | |
-| TASK-022 | Implement `apps/api/src/scoring/finalizeWave.ts` per Section 1.5 (aggregating `RESPONSIBLE_POST`, `RESPONSIBLE_RESHARE`, `VALID_REPORT` into `n_pos` and `MISINFO_POST`, `MISINFO_RESHARE`, `MISINFO_LIKE` into `n_neg`), returning `{alreadyFinalized, wave, usersScored, eventsCounted}`. | | |
-| TASK-023 | Implement `apps/api/src/scoring/verify.ts` (`verifyScores()` implementing I1 to I6 with the 7 event kinds) and `scripts/verify-scores.ts` (prints issues, exit code 1 on any issue). | | |
-| TASK-024 | Implement `apps/api/src/scoring/corrections.ts`: `supersedeAssessment(tx, oldAssessment, newAssessmentInput)` implementing RUL-015 (set `is_current = false`, insert successor, void eligible and held events with `assessment_superseded` and close open appeals on them, insert `REVERSAL` events for counted events—including `MISINFO_LIKE` and `RESPONSIBLE_RESHARE`—then call `createEventsForAssessment`). | | |
-| TASK-025 | Implement `apps/api/src/jobs/waveScheduler.ts`: every 60 s, under `pg_try_advisory_xact_lock`, if `WAVE_AUTO_FINALIZE_INTERVAL_HOURS > 0` and the open wave is older than the interval, call `finalizeWave` with actor `{kind:'system'}`. Register the loop in `src/jobs/index.ts`. | | |
-| TASK-026 | Integration tests `apps/api/test/scoring/finalize.test.ts`: TEST-013 through TEST-020 (all numerical cases through the real database including `MISINFO_LIKE` and `RESPONSIBLE_RESHARE`, idempotent double finalize, 10 parallel finalize calls, bystander rows, sigma immutability, `q = sigma * sum(r)`). | | |
-| TASK-027 | Integration tests `apps/api/test/scoring/corrections.test.ts`: TEST-021 through TEST-035 covering: reversal of counted events (author, resharer, liker, reporter); voiding before finalization; Good-Faith Window protection when real (admin) is superseded by fake (TEST-027); historical reporter receiving `VALID_REPORT` when unverifiable or `auto_real` is superseded by fake (TEST-028); like/unlike retraction before and after wave finalization (TEST-029, TEST-030); reshare retraction before and after wave finalization (TEST-031, TEST-032); repeated reshare and repeated like reactivation without 23505 errors (TEST-033); flat -1 publisher penalty invariant across 0 vs. 50 likes/reshares and across trusted/neutral/low publisher tiers (TEST-034, TEST-035). | | |
+| TASK-020 | Implement `apps/api/src/scoring/pure.ts` (`computeR`, `applyUpdate`, `foldHistory`, `decomposedScore`, `verifyUserHistory` per Section 1.5). Implement unit tests TEST-001 through TEST-012 in `apps/api/test/scoring/pure.test.ts`. | [x] | 2026-10-31 |
+| TASK-021 | Implement `apps/api/src/scoring/events.ts`: `createEventsForAssessment(tx, assessment)`, `syncReshareEventOnCreate(tx, reshare)`, `retractReshareEventOnDelete(tx, userId, originalPostId)`, `syncLikeEventOnLike(tx, userId, originalPostId)`, and `retractLikeEventOnUnlike(tx, userId, originalPostId)` implementing RUL-002–RUL-005, RUL-007, RUL-015 (Good-Faith Window exemption and historical reporter lookup), RUL-019, and RUL-032. Lock the open wave with `FOR SHARE`. | [x] | 2026-10-31 |
+| TASK-022 | Implement `apps/api/src/scoring/finalizeWave.ts` per Section 1.5 (aggregating `RESPONSIBLE_POST`, `RESPONSIBLE_RESHARE`, `VALID_REPORT` into `n_pos` and `MISINFO_POST`, `MISINFO_RESHARE`, `MISINFO_LIKE` into `n_neg`), returning `{alreadyFinalized, wave, usersScored, eventsCounted}`. | [x] | 2026-10-31 |
+| TASK-023 | Implement `apps/api/src/scoring/verify.ts` (`verifyScores()` implementing I1 to I6 with the 7 event kinds) and `scripts/verify-scores.ts` (prints issues, exit code 1 on any issue). | [x] | 2026-10-31 |
+| TASK-024 | Implement `apps/api/src/scoring/corrections.ts`: `supersedeAssessment(tx, oldAssessment, newAssessmentInput)` implementing RUL-015 (set `is_current = false`, insert successor, void eligible and held events with `assessment_superseded` and close open appeals on them, insert `REVERSAL` events for counted events—including `MISINFO_LIKE` and `RESPONSIBLE_RESHARE`—then call `createEventsForAssessment`). | [x] | 2026-10-31 |
+| TASK-025 | Implement `apps/api/src/jobs/waveScheduler.ts`: every 60 s, under `pg_try_advisory_xact_lock`, if `WAVE_AUTO_FINALIZE_INTERVAL_HOURS > 0` and the open wave is older than the interval, call `finalizeWave` with actor `{kind:'system'}`. Register the loop in `src/jobs/index.ts`. | [x] | 2026-10-31 |
+| TASK-026 | Integration tests `apps/api/test/scoring/finalize.test.ts`: TEST-013 through TEST-020 (all numerical cases through the real database including `MISINFO_LIKE` and `RESPONSIBLE_RESHARE`, idempotent double finalize, 10 parallel finalize calls, bystander rows, sigma immutability, `q = sigma * sum(r)`). | [x] | 2026-10-31 |
+| TASK-027 | Integration tests `apps/api/test/scoring/corrections.test.ts`: TEST-021 through TEST-035 covering: reversal of counted events (author, resharer, liker, reporter); voiding before finalization; Good-Faith Window protection when real (admin) is superseded by fake (TEST-027); historical reporter receiving `VALID_REPORT` when unverifiable or `auto_real` is superseded by fake (TEST-028); like/unlike retraction before and after wave finalization (TEST-029, TEST-030); reshare retraction before and after wave finalization (TEST-031, TEST-032); repeated reshare and repeated like reactivation without 23505 errors (TEST-033); flat -1 publisher penalty invariant across 0 vs. 50 likes/reshares and across trusted/neutral/low publisher tiers (TEST-034, TEST-035). | [x] | 2026-10-31 |
 
 ### Implementation Phase 4: Detector (pretrained model)
 
@@ -1247,17 +1247,17 @@ Execution rules: complete tasks in numeric order within a phase; a phase may sta
 
 | Task | Description | Completed | Date |
 |---|---|---|---|
-| TASK-037 | Implement middleware in `apps/api/src/middleware/`: `originCheck.ts`, `security.ts`, `rateLimit.ts`, `validate.ts`, `auth.ts`, `errors.ts`. Tests for each middleware. | | |
-| TASK-038 | Implement `modules/auth` (register, login, logout, me) and Zod schemas in `packages/shared/src/schemas/auth.ts`. Tests TEST-040–TEST-045. | | |
-| TASK-039 | Implement `modules/email` (`enqueueEmail`, outbox loop) and token flows in `modules/auth` (verify-email, resend-verification, forgot-password, reset-password, change-password, sessions). Tests TEST-046–TEST-047. | | |
-| TASK-040 | Implement `modules/users` (`GET /users/:username`, `PATCH /users/me`). Tests for forbidden fields and q visibility (RUL-023). | | |
-| TASK-041 | Implement `modules/media`, `src/storage/s3.ts`, and `jobs/mediaCleanup.ts`. Tests against real MinIO. | | |
-| TASK-042 | Implement `modules/notifications` core (`createNotification`, `bus.ts`, `sse.ts`, routes). Tests over real SSE. | | |
-| TASK-043 | Implement `modules/posts` (create, get, edit, delete, user posts, `serializePost` counting only active likes `deleted_at IS NULL` and exposing all 7 event kinds in `authorView.events`). | | |
-| TASK-044 | Implement `modules/feed` (`GET /feed/global`, `GET /feed/following`) with keyset pagination and block filtering. | | |
-| TASK-045 | Implement `modules/score` routes (`GET /me/score` pending aggregate using all 7 event kinds, `/me/score/history`, `/me/score/history/:waveNumber`, `/me/events`, `/users/:username/score`, `/waves/current`). | | |
-| TASK-046 | Implement `DELETE /users/me` (RUL-022, SEC-014) and `GET /users/me/export` (including active and retracted likes, events, ledger). | | |
-| TASK-047 | Write integration tests `apps/api/test/api/authz-matrix.test.ts` (TEST-105) covering every Phase 5 endpoint across all user states. | | |
+| TASK-037 | Implement middleware in `apps/api/src/middleware/`: `originCheck.ts`, `security.ts`, `rateLimit.ts`, `validate.ts`, `auth.ts`, `errors.ts`. Tests for each middleware. | [x] | 2026-10-31 |
+| TASK-038 | Implement `modules/auth` (register, login, logout, me) and Zod schemas in `packages/shared/src/schemas/auth.ts`. Tests TEST-040–TEST-045. | [x] | 2026-10-31 |
+| TASK-039 | Implement `modules/email` (`enqueueEmail`, outbox loop) and token flows in `modules/auth` (verify-email, resend-verification, forgot-password, reset-password, change-password, sessions). Tests TEST-046–TEST-047. | [x] | 2026-10-31 |
+| TASK-040 | Implement `modules/users` (`GET /users/:username`, `PATCH /users/me`). Tests for forbidden fields and q visibility (RUL-023). | [x] | 2026-10-31 |
+| TASK-041 | Implement `modules/media`, `src/storage/s3.ts`, and `jobs/mediaCleanup.ts`. Tests against real MinIO. | [x] | 2026-10-31 |
+| TASK-042 | Implement `modules/notifications` core (`createNotification`, `bus.ts`, `sse.ts`, routes). Tests over real SSE. | [x] | 2026-10-31 |
+| TASK-043 | Implement `modules/posts` (create, get, edit, delete, user posts, `serializePost` counting only active likes `deleted_at IS NULL` and exposing all 7 event kinds in `authorView.events`). | [x] | 2026-10-31 |
+| TASK-044 | Implement `modules/feed` (`GET /feed/global`, `GET /feed/following`) with keyset pagination and block filtering. | [x] | 2026-10-31 |
+| TASK-045 | Implement `modules/score` routes (`GET /me/score` pending aggregate using all 7 event kinds, `/me/score/history`, `/me/score/history/:waveNumber`, `/me/events`, `/users/:username/score`, `/waves/current`). | [x] | 2026-10-31 |
+| TASK-046 | Implement `DELETE /users/me` (RUL-022, SEC-014) and `GET /users/me/export` (including active and retracted likes, events, ledger). | [x] | 2026-10-31 |
+| TASK-047 | Write integration tests `apps/api/test/api/authz-matrix.test.ts` (TEST-105) covering every Phase 5 endpoint across all user states. | [x] | 2026-10-31 |
 
 ### Implementation Phase 6: Detection integration
 
@@ -1270,11 +1270,11 @@ Execution rules: complete tasks in numeric order within a phase; a phase may sta
 
 | Task | Description | Completed | Date |
 |---|---|---|---|
-| TASK-048 | Implement `src/detection/client.ts` and `src/detection/bands.ts` (RUL-027). Unit tests for error codes and band boundaries. | | |
-| TASK-049 | Implement `src/detection/worker.ts` (RUL-026) with `FOR UPDATE SKIP LOCKED`, warm-up, backoff, and stale-running reset. | | |
-| TASK-050 | Implement `src/detection/effects.ts` (`post_flagged` notification on `likely_fake`; assert zero assessments/events created per REQ-009). | | |
+| TASK-048 | Implement `src/detection/client.ts` and `src/detection/bands.ts` (RUL-027). Unit tests for error codes and band boundaries. | [x] | 2026-10-31 |
+| TASK-049 | Implement `src/detection/worker.ts` (RUL-026) with `FOR UPDATE SKIP LOCKED`, warm-up, backoff, and stale-running reset. | [ ] | |
+| TASK-050 | Implement `src/detection/effects.ts` (`post_flagged` notification on `likely_fake`; assert zero assessments/events created per REQ-009). | [ ] | |
 | TASK-051 | Implement admin detection endpoints (`POST /admin/posts/:id/redetect`, `POST /admin/detections/:id/requeue`, `GET /admin/detector/status`) and `GET /readyz`. | | |
-| TASK-052 | Implement `tools/fault-server/server.ts` and `apps/api/test/detection/failures.test.ts` (TEST-101). | | |
+| TASK-052 | Implement `tools/fault-server/server.ts` and `apps/api/test/detection/failures.test.ts` (TEST-101). | [ ] | |
 | TASK-053 | Write `apps/api/test/detection/real-detector.test.ts` (TEST-102) against the real detector container and wire into CI. | | |
 
 ### Implementation Phase 7: Governance (reports, assessments, appeals, admin)
@@ -1295,7 +1295,7 @@ Execution rules: complete tasks in numeric order within a phase; a phase may sta
 |---|---|---|---|
 | TASK-054 | Implement `modules/governance/reports`: `POST /posts/:id/report` per RUL-020. Tests for own-post rejection (403), duplicate (409), deleted post (404), and entry into `review_queue_v` (both when unassessed and when currently `auto_real`). | | |
 | TASK-055 | Implement `modules/governance/assessments` and `POST /admin/posts/:id/assessments`: locks post row, enforces RUL-021 (author, resharer, reporter, or liker conflict of interest), rejects identical admin verdict with 409 `ALREADY_EXISTS` (while permitting `auto_real` -> admin real), calls `supersedeAssessment` or inserts first assessment, calls `createEventsForAssessment`, writes audit row, and creates notifications (`assessment_decided` for author, resharers, and penalized likers; `report_resolved` for reporters). | | |
-| TASK-056 | Implement `src/jobs/autoReal.ts` per RUL-014 (creates `RESPONSIBLE_POST` only, never `RESPONSIBLE_RESHARE`). Tests: each condition of RUL-014 blocks auto-real; later user report puts the `auto_real` post into `GET /admin/queue`. | | |
+| TASK-056 | Implement `src/jobs/autoReal.ts` per RUL-014 (creates `RESPONSIBLE_POST` only, never `RESPONSIBLE_RESHARE`). Tests: each condition of RUL-014 blocks auto-real; later user report puts the `auto_real` post into `GET /admin/queue`. | [ ] | |
 | TASK-057 | Implement `modules/governance/appeals`: `POST /events/:id/appeal` (RUL-016: any non-voided negative event—`MISINFO_POST`, `MISINFO_RESHARE`, or `MISINFO_LIKE`—owned by caller within `APPEAL_WINDOW_DAYS`; sets eligible event to held with `wave_id = NULL`), `GET /me/appeals`, `appeal_opened` notification to admins. | | |
 | TASK-058 | Implement admin appeal endpoints (`GET /admin/appeals`, `POST /admin/appeals/:id/resolve`): `upheld` releases held event to open wave (RUL-008); `overturned` requires `newVerdict` (real or unverifiable) and rationale, calls `supersedeAssessment`, records `new_assessment_id`; enforces RUL-021. | | |
 | TASK-059 | Implement remaining admin endpoints in `modules/admin`: `GET /admin/queue` (reads `review_queue_v`), `GET /admin/posts/:id` (includes likes, reshares, reports, assessments, events, appeals), `POST /admin/posts/:id/release`, `DELETE /admin/posts/:id`, `GET /admin/users`, `GET /admin/users/:id`, `POST /admin/users/:id/suspend` and `/unsuspend`, `GET /admin/audit`, `GET /admin/waves`, `GET /admin/waves/:id/ledger`, `POST /admin/waves/:id/finalize`, `POST /admin/verify-scores`. | | |

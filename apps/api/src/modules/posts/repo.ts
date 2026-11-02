@@ -231,7 +231,7 @@ export async function countPostInteractions(
   }>(
     `SELECT
       (SELECT count(*) FROM likes WHERE post_id = $1 AND deleted_at IS NULL) AS likes,
-      (SELECT count(*) FROM comments WHERE post_id = $1) AS comments,
+       (SELECT count(*) FROM comments WHERE post_id = $1 AND deleted_at IS NULL) AS comments,
       (SELECT count(*) FROM posts WHERE reshare_of_post_id = $1 AND deleted_at IS NULL AND status <> 'deleted') AS reshares`,
     [postId],
   );

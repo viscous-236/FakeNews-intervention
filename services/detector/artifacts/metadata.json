@@ -16,6 +16,8 @@
   "input_format": "<title> {title} <content> {content} <end>",
   "input_note": "When no separate title is available, title is left empty and full post text is used as content.",
   "dataset_original_author": "ISOT Fake News Dataset (per model card) or similar; see MODEL_CARD.md",
+  "dataset_sha256": "unknown",
+  "trained_at": "unknown",
   "download_date": "2026-11-02T06:00:54.267634+00:00",
   "weights_sha256": "2ab83e0f8826e656218606514629b24036e990ab63c90ab9bb831d2ee7f8a265",
   "weights_file": "model.safetensors",

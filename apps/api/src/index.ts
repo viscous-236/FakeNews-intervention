@@ -8,6 +8,19 @@
 import { config, parseConfig } from './config';
 import { createApp } from './app';
 import { logger } from './logger';
+import { closePool } from './db/pool';
+import {
+  startAutoReal,
+  startDetectionWorker,
+  startEmailOutbox,
+  startMediaCleanup,
+  startWaveScheduler,
+  stopAutoReal,
+  stopDetectionWorker,
+  stopEmailOutbox,
+  stopMediaCleanup,
+  stopWaveScheduler,
+} from './jobs/index';
 
 // ---------------------------------------------------------------------------
 // Fail fast on bad env — must happen before any other import
@@ -27,18 +40,31 @@ const app = createApp();
 
 const server = app.listen(config.PORT, () => {
   logger.info({ port: config.PORT, env: config.NODE_ENV }, 'API server started');
+  startDetectionWorker();
+  startAutoReal();
+  startWaveScheduler();
+  startEmailOutbox();
+  startMediaCleanup();
 });
 
 // ---------------------------------------------------------------------------
 // Graceful shutdown (REQ-037)
 // ---------------------------------------------------------------------------
+let shuttingDown = false;
 const shutdown = (signal: string): void => {
+  if (shuttingDown) return;
+  shuttingDown = true;
   logger.info({ signal }, 'Shutdown signal received');
+
+  stopDetectionWorker();
+  stopAutoReal();
+  stopWaveScheduler();
+  stopEmailOutbox();
+  stopMediaCleanup();
 
   server.close(() => {
     logger.info('HTTP server closed');
-    // Additional cleanup (pool, SSE, WS) added in later phases.
-    process.exit(0);
+    void closePool().then(() => process.exit(0));
   });
 
   // Force exit after 20 s

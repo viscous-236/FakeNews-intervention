@@ -25,6 +25,7 @@ Design:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import math
@@ -45,6 +46,7 @@ _model = None
 _metadata: dict = {}
 _device: torch.device = torch.device("cpu")
 _model_loaded: bool = False
+_loaded_artifacts_dir: Path | None = None
 
 # Verified label mapping — never derive from positional index alone.
 # Source: model config.json id2label {"0": "FAKE", "1": "TRUE"}
@@ -77,7 +79,10 @@ def load_model(artifacts_dir: Path) -> None:
                        Must contain model/ (tokenizer + model weights) and
                        metadata.json.
     """
-    global _tokenizer, _model, _metadata, _device, _model_loaded
+    global _tokenizer, _model, _metadata, _device, _model_loaded, _loaded_artifacts_dir
+
+    if _model_loaded and _loaded_artifacts_dir == artifacts_dir:
+        return
 
     try:
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
@@ -110,6 +115,11 @@ def load_model(artifacts_dir: Path) -> None:
     with open(metadata_path) as f:
         _metadata = json.load(f)
 
+    if _metadata.get("hf_revision") != "648014ea36ff8aff85b6a6ee25e77579c27bcf19":
+        raise RuntimeError("Model metadata revision is not the pinned revision.")
+    if _metadata.get("license", "").upper() != "MIT":
+        raise RuntimeError("Model metadata does not verify the required MIT license.")
+
     logger.info("Loading tokenizer from %s", model_dir)
     _tokenizer = AutoTokenizer.from_pretrained(str(model_dir), local_files_only=True)
 
@@ -126,6 +136,11 @@ def load_model(artifacts_dir: Path) -> None:
     id2label: dict[int, str] = {
         int(k): v for k, v in _model.config.id2label.items()
     }
+    if _model.config.model_type != "roberta" or _model.config.num_labels != 2:
+        raise RuntimeError(
+            f"Unexpected model architecture: type={_model.config.model_type!r}, "
+            f"num_labels={_model.config.num_labels!r}"
+        )
     fake_label = str(id2label.get(FAKE_CLASS_INDEX, "")).upper()
     real_label = str(id2label.get(REAL_CLASS_INDEX, "")).upper()
 
@@ -149,7 +164,15 @@ def load_model(artifacts_dir: Path) -> None:
     _model.to(_device)
     _model.eval()
 
+    expected_sha256 = _metadata.get("weights_sha256")
+    weight_path = model_dir / "model.safetensors"
+    if expected_sha256 and expected_sha256 != "unknown" and weight_path.exists():
+        digest = hashlib.sha256(weight_path.read_bytes()).hexdigest()
+        if digest != expected_sha256:
+            raise RuntimeError("Local model.safetensors SHA-256 does not match metadata.")
+
     _model_loaded = True
+    _loaded_artifacts_dir = artifacts_dir
     logger.info(
         "Model loaded successfully. device=%s model_version=%s",
         _device,

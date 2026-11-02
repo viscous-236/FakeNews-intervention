@@ -29,6 +29,7 @@ export interface NewAssessmentInput {
 
 export interface SupersedeResult {
   newAssessment: AssessmentRecord;
+  eventsCreated: { kind: string; count: number }[];
   voidedCount: number;
   reversalsCreated: number;
 }
@@ -202,10 +203,11 @@ export async function supersedeAssessment(
   }
 
   // 6. Create new events for the successor assessment
-  await createEventsForAssessment(tx, newAssessment);
+  const eventResult = await createEventsForAssessment(tx, newAssessment);
 
   return {
     newAssessment,
+    eventsCreated: eventResult.eventsCreated,
     voidedCount,
     reversalsCreated,
   };

@@ -8,8 +8,8 @@
 # build step so the container can serve predictions without network access
 # at runtime.
 #
-# Build-time: ~5-10 min (downloading model + torch on first build)
-# Runtime: CPU inference, no GPU required.
+# Build-time: downloads pinned CPU PyTorch and model weights.
+# Runtime: CPU inference by default, no GPU required.
 #
 # Usage:
 #   docker build -t detector .
@@ -28,11 +28,13 @@ WORKDIR /app
 
 # Copy requirements first for layer caching
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --timeout 180 --retries 5 -r requirements.txt
 
-# Copy application source
-COPY app/ app/
+# Copy the downloader and any locally cached artifacts before the expensive
+# model step. In CI the ignored model directory is absent, so the downloader
+# fetches the pinned revision; local rebuilds can reuse an exported cache.
 COPY scripts/ scripts/
+COPY artifacts/ artifacts/
 
 # Create artifacts directory
 RUN mkdir -p artifacts/model
@@ -47,6 +49,10 @@ ENV HF_HOME=/app/.cache/huggingface \
     TRANSFORMERS_OFFLINE=0
 
 RUN python scripts/download_model.py
+
+# Copy application source after the model layer so source edits do not force a
+# second Hugging Face download.
+COPY app/ app/
 
 # After download, switch to offline mode for runtime — model must load
 # from local artifacts only (no network access needed or allowed at runtime).

@@ -8,6 +8,8 @@ so the backend client's Zod schema can validate responses uniformly.
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from pydantic import BaseModel, Field, field_validator
 
 # ---------------------------------------------------------------------------
@@ -18,8 +20,8 @@ from pydantic import BaseModel, Field, field_validator
 class PredictRequest(BaseModel):
     """POST /v1/predict — request body."""
 
-    request_id: str = Field(..., description="UUID string, echoed back in the response.")
-    post_id: str = Field(..., description="UUID of the post being classified.")
+    request_id: UUID = Field(..., description="UUID echoed back in the response.")
+    post_id: UUID = Field(..., description="UUID of the post being classified.")
     text: str = Field(
         ..., min_length=1, max_length=2000, description="Post body text, 1–2000 chars."
     )
@@ -35,7 +37,7 @@ class PredictRequest(BaseModel):
 class PredictResponse(BaseModel):
     """POST /v1/predict — 200 response body."""
 
-    request_id: str
+    request_id: UUID
     model_name: str
     model_version: str
     p_fake: float = Field(..., ge=0.0, le=1.0)

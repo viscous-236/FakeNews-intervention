@@ -55,17 +55,15 @@ def liar_label_to_binary(label_name: str) -> int:
 
 def main(max_samples: int | None = None) -> None:
     try:
-        from datasets import load_dataset
         import numpy as np
+        from datasets import load_dataset
         from sklearn.metrics import (
             accuracy_score,
+            average_precision_score,
             classification_report,
             confusion_matrix,
             roc_auc_score,
-            average_precision_score,
-            precision_recall_curve,
         )
-        import torch
     except ImportError as exc:
         print(
             f"ERROR: Missing dependency ({exc}). "
@@ -89,7 +87,7 @@ def main(max_samples: int | None = None) -> None:
     # ------------------------------------------------------------------
     # Load model
     # ------------------------------------------------------------------
-    from app.model import load_model, predict, FAKE_CLASS_INDEX
+    from app.model import load_model, predict
 
     print("Loading model for evaluation …")
     load_model(ARTIFACTS_DIR)
@@ -235,7 +233,10 @@ def main(max_samples: int | None = None) -> None:
         writer.writerow(["statement", "original_label", "true_binary", "p_fake"])
         for stmt, lbl, tb, pf in misclassified[:100]:
             writer.writerow([stmt, lbl, tb, f"{pf:.4f}"])
-    print(f"Wrote {errors_path} ({len(misclassified)} misclassified, {min(100, len(misclassified))} recorded)")
+    print(
+        f"Wrote {errors_path} ({len(misclassified)} misclassified, "
+        f"{min(100, len(misclassified))} recorded)"
+    )
 
     # ------------------------------------------------------------------
     # Update metadata.json with eval metrics
@@ -270,6 +271,17 @@ def _build_report_md(metrics: dict) -> str:
     fake = metrics.get("per_class", {}).get("Fake", {})
     real = metrics.get("per_class", {}).get("Real", {})
 
+    def metric_value(values: dict, key: str) -> str:
+        value = values.get(key, "N/A")
+        return value if isinstance(value, str) else f"{value:.4f}"
+
+    fake_precision = metric_value(fake, "precision")
+    fake_recall = metric_value(fake, "recall")
+    fake_f1 = metric_value(fake, "f1-score")
+    real_precision = metric_value(real, "precision")
+    real_recall = metric_value(real, "recall")
+    real_f1 = metric_value(real, "f1-score")
+
     return f"""# Detector Evaluation Report
 
 ## Model
@@ -295,8 +307,8 @@ def _build_report_md(metrics: dict) -> str:
 
 | Class | Precision | Recall | F1    |
 |:------|:----------|:-------|:------|
-| Fake  | {fake.get("precision", "N/A") if isinstance(fake.get("precision"), str) else f"{fake.get('precision', 0):.4f}"} | {fake.get("recall", "N/A") if isinstance(fake.get("recall"), str) else f"{fake.get('recall', 0):.4f}"} | {fake.get("f1-score", "N/A") if isinstance(fake.get("f1-score"), str) else f"{fake.get('f1-score', 0):.4f}"} |
-| Real  | {real.get("precision", "N/A") if isinstance(real.get("precision"), str) else f"{real.get('precision', 0):.4f}"} | {real.get("recall", "N/A") if isinstance(real.get("recall"), str) else f"{real.get('recall', 0):.4f}"} | {real.get("f1-score", "N/A") if isinstance(real.get("f1-score"), str) else f"{real.get('f1-score', 0):.4f}"} |
+| Fake  | {fake_precision} | {fake_recall} | {fake_f1} |
+| Real  | {real_precision} | {real_recall} | {real_f1} |
 
 ## Confusion Matrix
 

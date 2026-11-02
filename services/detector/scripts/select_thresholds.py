@@ -43,8 +43,8 @@ DEPLOYMENT_DOC_PATH = PROJECT_ROOT / "docs" / "DEPLOYMENT.md"
 
 def main() -> None:
     try:
-        from datasets import load_dataset
         import numpy as np
+        from datasets import load_dataset
     except ImportError as exc:
         print(
             f"ERROR: Missing dependency ({exc}). "
@@ -249,13 +249,15 @@ def _update_env_example(fake_high: float, real_low: float) -> None:
 
 def _update_deployment_doc(fake_high: float, real_low: float, thresholds: dict) -> None:
     DEPLOYMENT_DOC_PATH.parent.mkdir(parents=True, exist_ok=True)
+    fake_source = thresholds.get("fake_high_selection", {}).get("source", "unknown")
+    real_source = thresholds.get("real_low_selection", {}).get("source", "unknown")
     section = f"""
 ## Detection Thresholds
 
 | Variable              | Value  | Source         |
 |:----------------------|:-------|:---------------|
-| `FAKE_THRESHOLD_HIGH` | `{fake_high}` | {thresholds.get("fake_high_selection", {}).get("source", "unknown")} |
-| `REAL_THRESHOLD_LOW`  | `{real_low}` | {thresholds.get("real_low_selection", {}).get("source", "unknown")} |
+| `FAKE_THRESHOLD_HIGH` | `{fake_high}` | {fake_source} |
+| `REAL_THRESHOLD_LOW`  | `{real_low}` | {real_source} |
 
 Thresholds were selected using the LIAR validation split only (REQ-032).
 {thresholds.get("note", "")}
