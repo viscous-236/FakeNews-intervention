@@ -1,14 +1,15 @@
 [project]
 name = "detector"
-version = "0.1.0"
-description = "Fake-news detector service for platform intervention"
-requires-python = ">=3.11"
+version = "0.2.0"
+description = "Fake-news detector service – pretrained RoBERTa-based classifier"
+requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
     "pydantic>=2.8.0",
-    "scikit-learn>=1.5.0",
-    "joblib>=1.4.0",
+    "torch>=2.2.0",
+    "transformers>=4.40.0",
+    "safetensors>=0.4.3",
     "numpy>=1.26.0",
 ]
 
@@ -16,6 +17,7 @@ dependencies = [
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-v"
+asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 100

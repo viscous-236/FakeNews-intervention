@@ -1,0 +1,13 @@
+{
+  "fake_high": 0.65,
+  "real_low": 0.35,
+  "note": "PROVISIONAL VALUES \u2014 validation dataset could not be loaded. Do not rely on these for auto-real assessments in production. Run this script again with internet access.",
+  "fake_high_selection": {
+    "value": 0.65,
+    "source": "provisional_default"
+  },
+  "real_low_selection": {
+    "value": 0.35,
+    "source": "provisional_default"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "model_id": "hamzab/roberta-fake-news-classification",
+  "model_name": "hamzab-roberta-fake-news-classification",
+  "model_version": "hamzab-roberta-fake-news-classification-648014ea",
+  "hf_revision": "648014ea36ff8aff85b6a6ee25e77579c27bcf19",
+  "architecture": "roberta",
+  "num_labels": 2,
+  "max_sequence_length": 512,
+  "license": "MIT",
+  "label_mapping": {
+    "0": "FAKE",
+    "1": "TRUE"
+  },
+  "fake_class_index": 0,
+  "real_class_index": 1,
+  "input_format": "<title> {title} <content> {content} <end>",
+  "input_note": "When no separate title is available, title is left empty and full post text is used as content.",
+  "dataset_original_author": "ISOT Fake News Dataset (per model card) or similar; see MODEL_CARD.md",
+  "download_date": "2026-11-02T06:00:54.267634+00:00",
+  "weights_sha256": "2ab83e0f8826e656218606514629b24036e990ab63c90ab9bb831d2ee7f8a265",
+  "weights_file": "model.safetensors",
+  "metrics": {
+    "val_macro_f1": null,
+    "test_macro_f1": null,
+    "_note": "Run scripts/evaluate_model.py to populate these fields."
+  },
+  "recommended_thresholds": {
+    "fake_high": 0.65,
+    "real_low": 0.35,
+    "_note": "Provisional defaults. Run scripts/select_thresholds.py to compute data-driven values."
+  }
+}

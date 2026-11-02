@@ -1,4 +1,3 @@
-import pytest
 
 from app.preprocess import preprocess_text
 

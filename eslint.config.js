@@ -8,7 +8,14 @@ module.exports = tseslint.config(
   ...tseslint.configs.recommended,
   prettierConfig,
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**', '**/.vitest-cache/**'],
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      '**/coverage/**',
+      '**/.vitest-cache/**',
+      '**/.venv/**',
+      '**/venv/**',
+    ],
   },
   {
     rules: {

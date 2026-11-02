@@ -55,22 +55,26 @@ services:
       timeout: 3s
       retries: 5
 
-  # Detector built locally once training is complete (Phase 4 / TASK-035).
-  # Commented out until services/detector/Dockerfile and trained artifact exist.
-  # detector:
-  #   build:
-  #     context: ./services/detector
-  #     dockerfile: Dockerfile
-  #   environment:
-  #     DETECTOR_API_KEY: test-detector-key
-  #     PORT: 8001
-  #   ports:
-  #     - '8001:8001'
-  #   healthcheck:
-  #     test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:8001/healthz']
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 10
+  # Detector service — pretrained hamzab/roberta-fake-news-classification model.
+  # Model weights are downloaded during the Docker image build (Dockerfile).
+  # Phase 4 / TASK-034 complete.
+  detector:
+    build:
+      context: ./services/detector
+      dockerfile: Dockerfile
+    environment:
+      DETECTOR_API_KEY: test-detector-key
+      PORT: 8001
+      MODEL_DIR: /app/artifacts
+      LOG_LEVEL: info
+    ports:
+      - '8001:8001'
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:8001/healthz']
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 10
 
 volumes:
   postgres_data:

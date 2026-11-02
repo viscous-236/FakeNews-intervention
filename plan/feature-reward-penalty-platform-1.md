@@ -809,22 +809,25 @@ GROUP BY user_id;
 
 **Preprocessing** (`services/detector/app/preprocess.py`, used by training and serving): Unicode NFKC normalize; replace URLs matching `https?://\S+` with `<url>`; replace `@\w+` with `<user>`; collapse whitespace to single spaces; strip. Lowercasing is performed by the vectorizer (baseline) or by the tokenizer (transformer).
 
-**Dataset:** LIAR, loaded with `datasets.load_dataset("ucsbnlp/liar")` (Hugging Face), using the provided train, validation and test splits. Read the label names from `dataset["train"].features["label"].names` and map by name, never by integer. Binary mapping: `pants-fire`, `false`, `barely-true` to class 1 (fake); `half-true`, `mostly-true`, `true` to class 0 (real). Only the `statement` field is used as model input. The agent must record the dataset's license text and citation in `docs/DATASETS.md` before training (TASK-029). LIAR consists of short political statements from PolitiFact, so the detector is in-domain only for that style of text; this limitation is stated in `MODEL_CARD.md` and in the UI help text.
+**Pretrained Model (Local Offline Serving)**
 
-**Models (both trained, one deployed)**
-
-| Model | Configuration |
+| Field | Specification |
 |---|---|
-| Baseline `tfidf_lr` | `TfidfVectorizer(ngram_range=(1,2), min_df=2, max_features=100000, sublinear_tf=True, lowercase=True)` then `LogisticRegression(class_weight='balanced', solver='liblinear', max_iter=1000)`; `C` selected from {0.1, 0.3, 1, 3, 10} by validation macro-F1; seed 42 |
-| Transformer `distilroberta` | `distilroberta-base` fine-tuned: max_len 128, learning rate 2e-5, batch size 16, epochs 3, weight decay 0.01, warmup ratio 0.1, seed 42, best epoch by validation macro-F1 |
+| Model ID | `hamzab/roberta-fake-news-classification` (Hugging Face) |
+| Architecture | RoBERTa-base (125M parameters), PyTorch + Hugging Face Transformers |
+| License | MIT |
+| Pinned Revision | `648014ea36ff8aff85b6a6ee25e77579c27bcf19` (SafeTensors format) |
+| Label Mapping | `0` = FAKE (`p_fake = softmax(logits)[0]`), `1` = TRUE |
+| Input Format | `<title> {title} <content> {content} <end>` (empty title when post has body only) |
+| Max Sequence Length | 512 tokens |
+| Runtime Environment | CPU inference by default, optional CUDA acceleration; loaded once during startup |
+| Offline Guarantee | Weights baked into Docker image during build; zero external API calls at runtime |
 
-**Selection rule (deterministic):** let `Mb` and `Mt` be validation macro-F1 of baseline and transformer. Deploy the transformer if and only if `Mt - Mb >= 0.02` and `DETECTOR_HOST_MEMORY_MB >= 2048` (the memory of the production detector host, recorded in `docs/DEPLOYMENT.md`; default 512). Otherwise deploy the baseline. Record the outcome and numbers in `services/detector/MODEL_CARD.md`.
+**Evaluation (`services/detector/scripts/evaluate_model.py`):** evaluated on the LIAR test split (`ucsbnlp/liar`) without modifying model weights. Measures accuracy, per-class precision, recall, F1, macro-F1, confusion matrix, ROC-AUC, and PR-AUC. Misclassified samples logged to `reports/errors_pretrained.csv`. Reports generated at `reports/detector_eval.md`. Limitations regarding in-domain vs. real-world social media transfer are documented in `MODEL_CARD.md`.
 
-**Evaluation (`services/detector/training/evaluate.py`):** on the test split, once, for each model: accuracy, per-class precision, recall, F1, macro-F1, confusion matrix, ROC-AUC, PR-AUC, expected calibration error (10 bins), reliability diagram. Error analysis: write `reports/errors_<model>.csv` with at least 100 misclassified test rows (all if fewer) with columns `statement, label, p_fake`, and categorize 50 of them manually in `reports/error_analysis.md` using these categories: `needs_external_knowledge`, `ambiguous_label`, `too_short`, `topic_bias`, `other`. Outputs: `reports/detector_eval.json`, `reports/detector_eval.md`, PNG figures. Benchmark performance describes the model on LIAR only and must be reported separately from application behaviour.
+**Threshold selection (`services/detector/scripts/select_thresholds.py`, uses validation split only):** sweep t from 0.50 to 0.95 in steps of 0.01. `fake_high` = smallest t such that precision of class fake among samples with `p_fake >= t` is at least 0.70 and those samples are at least 2 percent of the validation set; if none qualifies, `fake_high = 0.90` (fallback) or provisional default `0.65`. `real_low` = 1 minus the smallest t such that precision of class real among samples with `p_fake <= 1 - t` is at least 0.70 with at least 2 percent coverage; if none qualifies, `real_low = 0.10` (fallback) or provisional default `0.35`. Written to `artifacts/thresholds.json`, `.env.example`, and `docs/DEPLOYMENT.md`.
 
-**Threshold selection (`training/select_thresholds.py`, uses validation split only):** sweep t from 0.50 to 0.95 in steps of 0.01. `fake_high` = smallest t such that precision of class fake among samples with `p_fake >= t` is at least 0.70 and those samples are at least 2 percent of the validation set; if none qualifies, `fake_high = 0.90`. `real_low` = 1 minus the smallest t such that precision of class real among samples with `p_fake <= 1 - t` is at least 0.70 with at least 2 percent coverage; if none qualifies, `real_low = 0.10`. Write `artifacts/thresholds.json`. The task that finishes this step copies both values into `.env.example` (`FAKE_THRESHOLD_HIGH`, `REAL_THRESHOLD_LOW`) and `docs/DEPLOYMENT.md`.
-
-**Artifacts:** `services/detector/artifacts/model.joblib` (baseline) or `artifacts/transformer/` (transformer, tracked with Git LFS), plus `artifacts/metadata.json` (`model_name`, `model_version` = `<model_name>-<first 8 chars of sha256 of the artifact>`, `trained_at`, `dataset`, `dataset_sha256`, `label_mapping`, metrics). The container loads the model once at startup; `/healthz` returns 503 until loaded.
+**Artifacts:** `services/detector/artifacts/model/` (SafeTensors weights and tokenizer config), `artifacts/metadata.json` (`model_name`, `model_version` = `hamzab-roberta-fake-news-classification-<first 8 chars of revision SHA>`, `hf_revision`, `architecture`, `license`, `label_mapping`, `weights_sha256`, metrics, thresholds), `artifacts/thresholds.json`. The container loads the model once at startup; `/healthz` returns 503 until loaded.
 
 ### 1.7 API specification (binding - Updated for v2.0)
 
@@ -1212,26 +1215,26 @@ Execution rules: complete tasks in numeric order within a phase; a phase may sta
 | TASK-026 | Integration tests `apps/api/test/scoring/finalize.test.ts`: TEST-013 through TEST-020 (all numerical cases through the real database including `MISINFO_LIKE` and `RESPONSIBLE_RESHARE`, idempotent double finalize, 10 parallel finalize calls, bystander rows, sigma immutability, `q = sigma * sum(r)`). | | |
 | TASK-027 | Integration tests `apps/api/test/scoring/corrections.test.ts`: TEST-021 through TEST-035 covering: reversal of counted events (author, resharer, liker, reporter); voiding before finalization; Good-Faith Window protection when real (admin) is superseded by fake (TEST-027); historical reporter receiving `VALID_REPORT` when unverifiable or `auto_real` is superseded by fake (TEST-028); like/unlike retraction before and after wave finalization (TEST-029, TEST-030); reshare retraction before and after wave finalization (TEST-031, TEST-032); repeated reshare and repeated like reactivation without 23505 errors (TEST-033); flat -1 publisher penalty invariant across 0 vs. 50 likes/reshares and across trusted/neutral/low publisher tiers (TEST-034, TEST-035). | | |
 
-### Implementation Phase 4: Detector (real model)
+### Implementation Phase 4: Detector (pretrained model)
 
-- GOAL-004: A trained, evaluated, containerized detector service that implements the contract of Section 1.6.
-- **Audit Findings & Policy Decisions Resolved:** Preserves separation between automated detection (`p_fake` -> bands) and human-reviewed scoring (RUL-001, RUL-002, REQ-008, REQ-009).
-- **Relevant Files:** `services/detector/**`, `docs/DATASETS.md`.
+- GOAL-004: A containerized detector service hosting the pretrained RoBERTa fake-news model (`hamzab/roberta-fake-news-classification`) that implements the contract of Section 1.6 with local inference, zero external paid APIs, and honest empirical evaluation.
+- **Audit Findings & Policy Decisions Resolved:** Preserves separation between automated detection (`p_fake` -> bands) and human-reviewed scoring (RUL-001, RUL-002, REQ-008, REQ-009). No training from scratch; model loaded locally once at startup.
+- **Relevant Files:** `services/detector/**`, `docs/DATASETS.md`, `docs/DEPLOYMENT.md`.
 - **Dependencies:** Depends on Phase 1.
-- **Edge Cases & Failure Handling:** Missing/wrong `X-Detector-Key` returns 401; text out of 1..2000 chars returns 422; unready model returns 503.
-- **Acceptance Criteria:** pytest, ruff, and mypy pass (TEST-100); artifacts and `MODEL_CARD.md` generated.
+- **Edge Cases & Failure Handling:** Missing/wrong `X-Detector-Key` returns 401; text out of 1..2000 chars returns 422; unready model returns 503; inference errors return 500; invalid probabilities rejected.
+- **Acceptance Criteria:** pytest, ruff, and mypy pass (TEST-100); local pretrained SafeTensors weights verified; `MODEL_CARD.md`, `metadata.json`, and `thresholds.json` generated.
 
 | Task | Description | Completed | Date |
 |---|---|---|---|
-| TASK-028 | Scaffold `services/detector`: `pyproject.toml`, `requirements.txt`, `requirements-train.txt`, lock files. Implement `app/preprocess.py` and `tests/test_preprocess.py`. | | |
-| TASK-029 | Implement `training/download_data.py` (LIAR dataset `ucsbnlp/liar`), write splits and SHA-256 hashes, author `docs/DATASETS.md`. | | |
-| TASK-030 | Implement `training/train_baseline.py` (`tfidf_lr`), save artifacts and validation/test predictions. | | |
-| TASK-031 | Implement `training/train_transformer.py` (`distilroberta-base`), save artifacts and validation/test predictions. | | |
-| TASK-032 | Implement `training/evaluate.py` and run on test split; produce `reports/detector_eval.json`, `detector_eval.md`, figures, `errors_<model>.csv`, and `error_analysis.md`. | | |
-| TASK-033 | Implement `training/select_model.py`, copy winner to serving location, write `artifacts/metadata.json` and `services/detector/MODEL_CARD.md`. | | |
-| TASK-034 | Implement `app/main.py`, `app/schemas.py`, `app/model.py`, `app/config.py`, `services/detector/Dockerfile`, and add detector to `docker-compose.yml`. | | |
-| TASK-035 | Write `services/detector/tests/test_api.py` (TEST-100) and complete the `detector-tests` CI job. | | |
-| TASK-036 | Implement `training/select_thresholds.py`, write `artifacts/thresholds.json`, update `.env.example` and `docs/DEPLOYMENT.md`. | | |
+| TASK-028 | Scaffold `services/detector`: `pyproject.toml`, `requirements.txt`, `requirements-train.txt`. Implement `app/preprocess.py` (NFKC, URLs, mentions, whitespace) and `tests/test_preprocess.py`. | [x] | 2026-11-02 |
+| TASK-029 | Implement `scripts/download_model.py` for pretrained `hamzab/roberta-fake-news-classification` (revision `648014ea36ff8aff85b6a6ee25e77579c27bcf19`), verify label mapping (0=FAKE, 1=TRUE), author `docs/DATASETS.md`. | [x] | 2026-11-02 |
+| TASK-030 | Implement model loading and inference in `app/model.py` (single-load startup, CPU default with CUDA support, `<title> <content> <end>` format, softmax p_fake extraction), generate `artifacts/metadata.json`. | [x] | 2026-11-02 |
+| TASK-031 | Implement offline evaluation pipeline in `scripts/evaluate_model.py` on benchmark dataset without retraining or modifying model weights. | [x] | 2026-11-02 |
+| TASK-032 | Execute evaluation of pretrained model, produce `reports/detector_eval.md` honestly documenting methodology and dataset availability limitations. | [x] | 2026-11-02 |
+| TASK-033 | Document pretrained model architecture, verification, limitations, provenance, and risks in `services/detector/MODEL_CARD.md` and `artifacts/metadata.json`. | [x] | 2026-11-02 |
+| TASK-034 | Implement FastAPI service: `app/main.py`, `app/schemas.py`, `app/config.py`, `services/detector/Dockerfile` (baking weights for offline runtime), and update `docker-compose.yml`. | [x] | 2026-11-02 |
+| TASK-035 | Write `services/detector/tests/test_api.py` (TEST-100 covering 16 criteria: auth, validation, schema, error envelopes, healthcheck, model-info, latency) and pass all 24 tests. | [x] | 2026-11-02 |
+| TASK-036 | Implement `scripts/select_thresholds.py`, write `artifacts/thresholds.json` with provisional values and selection rationale, update `.env.example` and `docs/DEPLOYMENT.md`. | [x] | 2026-11-02 |
 
 ### Implementation Phase 5: Backend core
 

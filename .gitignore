@@ -27,11 +27,10 @@ __pycache__/
 .venv/
 venv/
 
-# Detector training data (large; downloaded by script)
+# Detector training data and large model weights (downloaded by script / Docker build)
 services/detector/data/
-
-# Detector artifacts (committed only after training)
-# services/detector/artifacts/ -- keep artifacts
+services/detector/artifacts/model/
+!services/detector/artifacts/model/.gitkeep
 
 # OS
 .DS_Store
