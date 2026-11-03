@@ -10,6 +10,7 @@ import { config } from '../../config.js';
 import { type PoolClient } from '../../db/pool.js';
 import { withTransaction } from '../../db/tx.js';
 import { AppError } from '../../middleware/errors.js';
+import { tierOfValue, type Tier } from '../../scoring/tier.js';
 import {
   insertUser,
   findUserByUsername,
@@ -40,7 +41,7 @@ export interface UserSummary {
   username: string;
   displayName: string;
   avatarUrl: string | null;
-  tier: 'trusted' | 'neutral' | 'low';
+  tier: Tier;
 }
 
 export interface MeUser {
@@ -74,11 +75,8 @@ export interface PublicUserProfile {
   createdAt: string;
 }
 
-export function computeTier(q: string | number): 'trusted' | 'neutral' | 'low' {
-  const num = typeof q === 'string' ? parseFloat(q) : q;
-  if (num >= config.Q_TRUSTED_MIN) return 'trusted';
-  if (num <= config.Q_LOW_MAX) return 'low';
-  return 'neutral';
+export function computeTier(q: string | number): Tier {
+  return tierOfValue(q);
 }
 
 export function toMeUser(user: UserRow): MeUser {

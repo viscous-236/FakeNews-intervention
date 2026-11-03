@@ -9,3 +9,4 @@ export * from './schemas/posts.js';
 export * from './schemas/score.js';
 export * from './schemas/governance.js';
 export * from './schemas/social.js';
+export * from './schemas/messages.js';

@@ -7,7 +7,7 @@
 import { type PoolClient } from '../../db/pool.js';
 import { config } from '../../config.js';
 import { encodeCursor, decodeCursor, type DecodedCursor } from '../../db/cursor.js';
-import { computeTier } from '../users/service.js';
+import { tierOfValue } from '../../scoring/tier.js';
 import { emitNotification } from './bus.js';
 import {
   insertNotification,
@@ -49,7 +49,7 @@ export function toNotificationItem(row: NotificationJoinedRow): NotificationItem
           avatarUrl: row.actor_avatar_media_id
             ? `${config.S3_PUBLIC_BASE_URL}/${row.actor_avatar_media_id}`
             : null,
-          tier: computeTier(row.actor_q ?? 0),
+           tier: tierOfValue(row.actor_q ?? 0),
         }
       : null,
     postId: row.post_id,

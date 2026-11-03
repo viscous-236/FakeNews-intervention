@@ -2,10 +2,14 @@
 
 import { withTransaction } from '../../db/tx.js';
 import { AppError } from '../../middleware/errors.js';
-import { createNotification } from '../notifications/service.js';
+import { emitNotification } from '../notifications/bus.js';
+import { insertNotification } from '../notifications/repo.js';
+import { toNotificationItem, type NotificationItem } from '../notifications/service.js';
 import { retractLikeEventOnUnlike, syncLikeEventOnLike } from '../../scoring/events.js';
 
 export async function likePost(userId: string, postId: string): Promise<void> {
+  let notificationTarget: string | null = null;
+  let pendingNotification: NotificationItem | null = null;
   await withTransaction(async (tx) => {
     const postResult = await tx.query<{ author_id: string; kind: string; status: string }>(
       `SELECT author_id, kind, status FROM posts WHERE id = $1 FOR SHARE`,
@@ -32,12 +36,16 @@ export async function likePost(userId: string, postId: string): Promise<void> {
     );
     await syncLikeEventOnLike(tx, userId, postId);
     if (post.author_id !== userId) {
-      await createNotification(
+      notificationTarget = post.author_id;
+      const row = await insertNotification(
         { userId: post.author_id, actorId: userId, type: 'like', postId },
         tx,
       );
+      pendingNotification = toNotificationItem(row);
     }
   });
+
+  if (notificationTarget && pendingNotification) emitNotification(notificationTarget, pendingNotification);
 }
 
 export async function unlikePost(userId: string, postId: string): Promise<void> {

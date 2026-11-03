@@ -8,7 +8,7 @@ export { appealEvent } from '../governance/appeals.js';
 import { config } from '../../config.js';
 import { AppError } from '../../middleware/errors.js';
 import { encodeCursor, decodeCursor, type DecodedCursor } from '../../db/cursor.js';
-import { computeTier } from '../users/service.js';
+import { tierOfValue } from '../../scoring/tier.js';
 import { type ViewerContext } from '../posts/service.js';
 import { findUserByUsername } from '../users/repo.js';
 import { computeR } from '../../scoring/pure.js';
@@ -159,7 +159,7 @@ export async function getMyScore(user: {
 }): Promise<MyScoreResponse> {
   const qNum = parseFloat(user.q);
   const sigmaNum = parseFloat(user.sigma);
-  const tier = computeTier(qNum);
+  const tier = tierOfValue(qNum);
 
   const openWave = await getCurrentOpenWave();
   let pendingCounts = { nPos: 0, nNeg: 0, nAdj: 0 };
@@ -316,7 +316,7 @@ export async function getUserScore(
   }
 
   const qNum = parseFloat(user.q);
-  const tier = computeTier(qNum);
+  const tier = tierOfValue(qNum);
 
   const isSelf = viewer?.id === user.id;
   const isAdmin = viewer?.role === 'admin';

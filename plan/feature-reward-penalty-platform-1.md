@@ -4,7 +4,7 @@ version: 2.0
 date_created: 2026-10-14
 last_updated: 2026-11-03
 owner: Project owner (undergraduate CS mini project, extended scope)
-status: 'In progress - v2.0 audit pass'
+status: 'In progress - Phase 10 complete; Phase 11 next'
 tags: [feature, architecture, full-stack, machine-learning, scoring, governance]
 ---
 
@@ -1333,12 +1333,14 @@ and score-verification endpoints pass six additional real-database tests.
 
 | Task | Description | Completed | Date |
 |---|---|---|---|
-| TASK-061 | Implement `modules/social/likes` (RUL-032: soft-delete `deleted_at`, calls `syncLikeEventOnLike` on like and `retractLikeEventOnUnlike` on unlike inside `withTransaction`, rejects non-original target posts with 400, creates like notification only on initial like) and `modules/social/comments` (DEC-006: create and soft delete, zero scoring events). | | |
-| TASK-062 | Implement `modules/social/follows` and `modules/social/blocks` (RUL-028). | | |
-| TASK-063 | Implement `modules/social/reshares`: `POST /posts/:id/reshare` (RUL-019, `CONFIRMATION_REQUIRED`, calls `syncReshareEventOnCreate` for both fake and admin real originals) and `DELETE /posts/:id/reshare` (soft-deletes reshare and calls `retractReshareEventOnDelete` in the same transaction; ensure `DELETE /posts/:id` also calls `retractReshareEventOnDelete` when the deleted post has `kind = 'reshare'`). | | |
-| TASK-064 | Implement `modules/search` (RUL-030: `GET /search/posts` and `/search/users` with keyset pagination). | | |
-| TASK-065 | Implement `modules/social/suggestions` (RUL-029: two-hop mutuals + fallback fill, never using `q` or tier). | | |
-| TASK-066 | Write `apps/api/test/social/flows.test.ts` covering TEST-070 through TEST-079 (like on fake post creates `MISINFO_LIKE`, unlike before finalization voids it with `interaction_retracted`, unlike after finalization leaves counted event intact, re-like reactivates event without 23505 error; reshare of admin real post creates `RESPONSIBLE_RESHARE`, retracting reshare before finalization voids `MISINFO_RESHARE` / `RESPONSIBLE_RESHARE`, retracting after finalization leaves counted event intact; comments never create events). | | |
+| TASK-061 | Implement `modules/social/likes` (RUL-032: soft-delete `deleted_at`, calls `syncLikeEventOnLike` on like and `retractLikeEventOnUnlike` on unlike inside `withTransaction`, rejects non-original target posts with 400, creates like notification only on initial like) and `modules/social/comments` (DEC-006: create and soft delete, zero scoring events). | [x] | 2026-11-03 |
+| TASK-062 | Implement `modules/social/follows` and `modules/social/blocks` (RUL-028). | [x] | 2026-11-03 |
+| TASK-063 | Implement `modules/social/reshares`: `POST /posts/:id/reshare` (RUL-019, `CONFIRMATION_REQUIRED`, calls `syncReshareEventOnCreate` for both fake and admin real originals) and `DELETE /posts/:id/reshare` (soft-deletes reshare and calls `retractReshareEventOnDelete` in the same transaction; ensure `DELETE /posts/:id` also calls `retractReshareEventOnDelete` when the deleted post has `kind = 'reshare'`). | [x] | 2026-11-03 |
+| TASK-064 | Implement `modules/search` (RUL-030: `GET /search/posts` and `/search/users` with keyset pagination). | [x] | 2026-11-03 |
+| TASK-065 | Implement `modules/social/suggestions` (RUL-029: two-hop mutuals + fallback fill, never using `q` or tier). | [x] | 2026-11-03 |
+| TASK-066 | Write `apps/api/test/social/flows.test.ts` covering TEST-070 through TEST-079 (like on fake post creates `MISINFO_LIKE`, unlike before finalization voids it with `interaction_retracted`, unlike after finalization leaves counted event intact, re-like reactivates event without 23505 error; reshare of admin real post creates `RESPONSIBLE_RESHARE`, retracting reshare before finalization voids `MISINFO_RESHARE` / `RESPONSIBLE_RESHARE`, retracting after finalization leaves counted event intact; comments never create events). | [x] | 2026-11-03 |
+
+Verification (2026-11-03): social integration tests pass against real PostgreSQL for follow/unfollow, block/unblock, connection pagination, two-hop suggestions, full-text and trigram search, warning-gated fake reshares, retraction, fake-post scoring hooks, comments without scoring, and admin-real reshare rewards.
 
 ### Implementation Phase 9: Credibility policy (Layer 1 and Layer 2)
 
@@ -1350,10 +1352,12 @@ and score-verification endpoints pass six additional real-database tests.
 
 | Task | Description | Completed | Date |
 |---|---|---|---|
-| TASK-067 | Implement `src/scoring/tier.ts` (`tierOf(q: Decimal)` per RUL-011) and use it in every serializer. | | |
-| TASK-068 | Finalize post serialization of `label`, `underAppeal`, and `requiresShareConfirmation` (true when label is `auto_flagged` or `fact_checked_false` or author tier is `low`). | | |
-| TASK-069 | Implement the low-tier hold rule (RUL-024) inside post creation and admin release. | | |
-| TASK-070 | Implement `GET /admin/analytics/spread` query (reshares and active likes before and after label time, grouped by wave number and `author_tier_at_post`). | | |
+| TASK-067 | Implement `src/scoring/tier.ts` (`tierOf(q: Decimal)` per RUL-011) and use it in every serializer. | [x] | 2026-11-03 |
+| TASK-068 | Finalize post serialization of `label`, `underAppeal`, and `requiresShareConfirmation` (true when label is `auto_flagged` or `fact_checked_false` or author tier is `low`). | [x] | 2026-11-03 |
+| TASK-069 | Implement the low-tier hold rule (RUL-024) inside post creation and admin release. | [x] | 2026-11-03 |
+| TASK-070 | Implement `GET /admin/analytics/spread` query (reshares and active likes before and after label time, grouped by wave number and `author_tier_at_post`). | [x] | 2026-11-03 |
+
+Verification (2026-11-03): tier boundary tests pass at inclusive trusted/low thresholds; post label, confirmation, and low-tier hold behavior pass existing integration tests; spread analytics passes real-PostgreSQL authorization and before/after label-time grouping tests.
 
 ### Implementation Phase 10: Direct messages
 
@@ -1363,8 +1367,10 @@ and score-verification endpoints pass six additional real-database tests.
 
 | Task | Description | Completed | Date |
 |---|---|---|---|
-| TASK-071 | Implement `modules/messages` REST endpoints and `src/realtime/ws.ts` (REQ-042). | | |
-| TASK-072 | Write `apps/api/test/messages/messages.test.ts` (TEST-080–TEST-086). | | |
+| TASK-071 | Implement `modules/messages` REST endpoints and `src/realtime/ws.ts` (REQ-042). | [x] | 2026-11-03 |
+| TASK-072 | Write `apps/api/test/messages/messages.test.ts` (TEST-080–TEST-086). | [x] | 2026-11-03 |
+
+Verification (2026-11-03): direct-message REST tests pass for sending, conversation ordering, unread counts, history, read receipts, block enforcement, and suspended senders. Real WebSocket tests pass for REST-to-socket delivery, read notifications, unauthenticated rejection, and Origin rejection.
 
 ### Implementation Phase 11: Analytics, exports and API documentation
 

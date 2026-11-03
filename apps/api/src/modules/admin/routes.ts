@@ -14,6 +14,7 @@ import { finalizeWave } from '../../scoring/finalizeWave.js';
 import { verifyScores } from '../../scoring/verify.js';
 import { decodeCursor, encodeCursor } from '../../db/cursor.js';
 import { softDeletePostRow, findPostById } from '../posts/repo.js';
+import { getSpreadAnalytics } from './analytics.js';
 
 export const adminRouter = Router();
 const idParams = z.object({ id: z.string().uuid() }).strict();
@@ -32,6 +33,14 @@ const userListQuery = adminListQuery
 const auditQuery = adminListQuery
   .extend({ action: z.string().trim().min(1).max(100).optional() })
   .strict();
+
+adminRouter.get('/admin/analytics/spread', requireAdmin, async (_req, res, next) => {
+  try {
+    res.json(await getSpreadAnalytics());
+  } catch (error) {
+    next(error);
+  }
+});
 
 function serializeAdminUser(row: {
   id: string;

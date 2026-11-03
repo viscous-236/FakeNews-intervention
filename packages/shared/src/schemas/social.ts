@@ -14,3 +14,30 @@ export const listCommentsQuerySchema = z
     limit: z.coerce.number().int().min(1).max(50).default(20),
   })
   .strict();
+
+export const reshareSchema = z
+  .object({
+    comment: z.string().trim().max(500).optional(),
+    acknowledgedWarning: z.boolean().optional().default(false),
+  })
+  .strict();
+
+export type ReshareInput = z.infer<typeof reshareSchema>;
+
+export const listUsersQuerySchema = z
+  .object({
+    cursor: z.string().optional(),
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+  })
+  .strict();
+
+export const searchQuerySchema = z
+  .object({
+    q: z.string().trim().min(2).max(100),
+    cursor: z.string().optional(),
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+  })
+  .strict();
+
+export type ListUsersQuery = z.infer<typeof listUsersQuerySchema>;
+export type SearchQuery = z.infer<typeof searchQuerySchema>;

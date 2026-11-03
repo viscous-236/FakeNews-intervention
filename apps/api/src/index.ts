@@ -9,6 +9,8 @@ import { config, parseConfig } from './config';
 import { createApp } from './app';
 import { logger } from './logger';
 import { closePool } from './db/pool';
+import { attachWebSocketServer } from './realtime/ws';
+import { closeAllConnections } from './realtime/hub';
 import {
   startAutoReal,
   startDetectionWorker,
@@ -46,6 +48,7 @@ const server = app.listen(config.PORT, () => {
   startEmailOutbox();
   startMediaCleanup();
 });
+const webSocketServer = attachWebSocketServer(server);
 
 // ---------------------------------------------------------------------------
 // Graceful shutdown (REQ-037)
@@ -61,6 +64,8 @@ const shutdown = (signal: string): void => {
   stopWaveScheduler();
   stopEmailOutbox();
   stopMediaCleanup();
+  closeAllConnections();
+  webSocketServer.close();
 
   server.close(() => {
     logger.info('HTTP server closed');

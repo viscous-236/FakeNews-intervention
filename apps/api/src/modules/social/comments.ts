@@ -3,15 +3,20 @@
 import { withTransaction } from '../../db/tx.js';
 import { AppError } from '../../middleware/errors.js';
 import { decodeCursor, encodeCursor } from '../../db/cursor.js';
+import { emitNotification } from '../notifications/bus.js';
+import { insertNotification } from '../notifications/repo.js';
+import { toNotificationItem, type NotificationItem } from '../notifications/service.js';
 
 export async function createComment(
   userId: string,
   postId: string,
   body: string,
 ): Promise<Record<string, unknown>> {
-  return withTransaction(async (tx) => {
-    const post = await tx.query<{ id: string; status: string }>(
-      `SELECT id, status FROM posts WHERE id = $1 FOR SHARE`,
+  let notificationTarget: string | null = null;
+  let pendingNotification: NotificationItem | null = null;
+  const comment = await withTransaction(async (tx) => {
+    const post = await tx.query<{ id: string; author_id: string; status: string }>(
+      `SELECT id, author_id, status FROM posts WHERE id = $1 FOR SHARE`,
       [postId],
     );
     if (!post.rows[0] || post.rows[0].status === 'deleted') {
@@ -25,8 +30,19 @@ export async function createComment(
     );
     const comment = result.rows[0];
     if (!comment) throw new AppError(500, 'INTERNAL', 'Comment was not created');
+    notificationTarget = post.rows[0]!.author_id === userId ? null : post.rows[0]!.author_id;
+    if (notificationTarget) {
+      const row = await insertNotification(
+        { userId: notificationTarget, actorId: userId, type: 'comment', postId },
+        tx,
+      );
+      pendingNotification = toNotificationItem(row);
+    }
     return comment;
   });
+
+  if (pendingNotification && notificationTarget) emitNotification(notificationTarget, pendingNotification);
+  return comment;
 }
 
 export async function deleteComment(

@@ -14,7 +14,6 @@ import {
   createUser,
   verifyPassword,
   hashPassword,
-  computeTier,
   toMeUser,
   type MeUser,
 } from '../users/service.js';
@@ -36,7 +35,7 @@ import {
   deleteSessionById,
 } from './repo.js';
 
-export { computeTier, toMeUser, type MeUser, type UserRow };
+export { toMeUser, type MeUser, type UserRow };
 
 // ---------------------------------------------------------------------------
 // Failed login lockout tracking (SEC-003)

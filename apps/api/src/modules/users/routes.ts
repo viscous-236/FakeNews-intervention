@@ -5,18 +5,28 @@
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
-import { updateMeSchema, deleteMeSchema } from '@app/shared';
+import { deleteMeSchema, listUsersQuerySchema, updateMeSchema } from '@app/shared';
 import { config } from '../../config.js';
 import { validate } from '../../middleware/validate.js';
 import { authenticate, requireAuth, requireActive } from '../../middleware/auth.js';
+import { followsLimiter } from '../../middleware/rateLimit.js';
 import {
   getUserProfile,
   updateProfile,
   deleteAccount,
   exportAccount,
 } from './service.js';
+import {
+  blockUser,
+  followUser,
+  unblockUser,
+  unfollowUser,
+} from '../social/follows.js';
+import { getSuggestions, listBlockedUsers, listConnections } from '../social/people.js';
+import { z } from 'zod';
 
 export const usersRouter = Router();
+const usernameParams = z.object({ username: z.string().min(3).max(20) }).strict();
 
 // GET /users/me/export (Auth: any signed-in user, per line 878)
 usersRouter.get(
@@ -64,6 +74,136 @@ usersRouter.delete(
       res.status(204).send();
     } catch (err) {
       next(err);
+    }
+  },
+);
+
+usersRouter.get(
+  '/users/me/blocks',
+  requireAuth,
+  validate({ query: listUsersQuerySchema }),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const query = req.query as unknown as { cursor?: string; limit?: number };
+      res.json(await listBlockedUsers(req.user!.id, query.cursor, query.limit ?? 20));
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+usersRouter.get(
+  '/users/suggestions',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      res.json(await getSuggestions(req.user!.id));
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+usersRouter.get(
+  '/users/:username/followers',
+  authenticate,
+  validate({ params: usernameParams, query: listUsersQuerySchema }),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const query = req.query as unknown as { cursor?: string; limit?: number };
+      res.json(
+        await listConnections(
+          req.params.username as string,
+          'followers',
+          req.user?.id,
+          query.cursor,
+          query.limit ?? 20,
+        ),
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+usersRouter.get(
+  '/users/:username/following',
+  authenticate,
+  validate({ params: usernameParams, query: listUsersQuerySchema }),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const query = req.query as unknown as { cursor?: string; limit?: number };
+      res.json(
+        await listConnections(
+          req.params.username as string,
+          'following',
+          req.user?.id,
+          query.cursor,
+          query.limit ?? 20,
+        ),
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+usersRouter.post(
+  '/users/:username/follow',
+  requireActive,
+  followsLimiter,
+  validate({ params: usernameParams }),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await followUser(req.user!.id, req.params.username as string);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+usersRouter.delete(
+  '/users/:username/follow',
+  requireActive,
+  followsLimiter,
+  validate({ params: usernameParams }),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await unfollowUser(req.user!.id, req.params.username as string);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+usersRouter.post(
+  '/users/:username/block',
+  requireActive,
+  followsLimiter,
+  validate({ params: usernameParams }),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await blockUser(req.user!.id, req.params.username as string);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+usersRouter.delete(
+  '/users/:username/block',
+  requireActive,
+  followsLimiter,
+  validate({ params: usernameParams }),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await unblockUser(req.user!.id, req.params.username as string);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
     }
   },
 );

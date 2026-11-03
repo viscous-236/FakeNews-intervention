@@ -9,7 +9,8 @@ import { withTransaction } from '../../db/tx.js';
 import { config } from '../../config.js';
 import { AppError } from '../../middleware/errors.js';
 import { encodeCursor, decodeCursor, type DecodedCursor } from '../../db/cursor.js';
-import { computeTier, type UserSummary } from '../users/service.js';
+import { tierOfValue } from '../../scoring/tier.js';
+import { type UserSummary } from '../users/service.js';
 import { findUserByUsername } from '../users/repo.js';
 import { retractReshareEventOnDelete } from '../../scoring/events.js';
 import {
@@ -89,7 +90,7 @@ export async function serializePost(
   isRecursive = false,
   client?: PoolClient,
 ): Promise<PostOutput> {
-  const authorTier = computeTier(row.author_q);
+  const authorTier = tierOfValue(row.author_q);
   const author: UserSummary = {
     id: row.author_id,
     username: row.author_username,
@@ -195,7 +196,7 @@ export async function createPost(
     mediaIds?: string[];
   },
 ): Promise<PostOutput> {
-  const authorTier = computeTier(author.q);
+  const authorTier = tierOfValue(author.q);
 
   // RUL-024: low-tier hold check
   const status: 'published' | 'held' =

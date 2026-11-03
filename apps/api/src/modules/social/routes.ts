@@ -1,14 +1,48 @@
 /** Like and comment endpoints. */
 
 import { NextFunction, Request, Response, Router } from 'express';
-import { commentSchema, listCommentsQuerySchema } from '@app/shared';
+import { commentSchema, listCommentsQuerySchema, reshareSchema } from '@app/shared';
 import { requireActive, requireAuth } from '../../middleware/auth.js';
-import { commentsLimiter, likesLimiter } from '../../middleware/rateLimit.js';
+import { commentsLimiter, likesLimiter, resharesLimiter } from '../../middleware/rateLimit.js';
 import { validate } from '../../middleware/validate.js';
 import { createComment, deleteComment, listComments } from './comments.js';
 import { likePost, unlikePost } from './likes.js';
+import { createReshare, deleteReshare } from './reshares.js';
 
 export const socialRouter = Router();
+
+socialRouter.post(
+  '/posts/:id/reshare',
+  requireActive,
+  resharesLimiter,
+  validate({ body: reshareSchema }),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const post = await createReshare(
+        { id: req.user!.id, q: req.user!.q, role: req.user!.role },
+        req.params.id as string,
+        req.body,
+      );
+      res.status(201).json(post);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+socialRouter.delete(
+  '/posts/:id/reshare',
+  requireActive,
+  resharesLimiter,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await deleteReshare(req.user!.id, req.params.id as string);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 socialRouter.get(
   '/posts/:id/comments',
