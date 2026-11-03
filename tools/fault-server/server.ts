@@ -2,7 +2,16 @@
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 
-export type FaultMode = 'timeout' | 'network-error' | 'http-401' | 'http-422' | 'http-500' | 'malformed' | 'mismatch';
+export type FaultMode =
+  | 'timeout'
+  | 'network-error'
+  | 'http-401'
+  | 'http-422'
+  | 'http-500'
+  | 'malformed'
+  | 'mismatch'
+  | 'out-of-range'
+  | 'warmup-failure';
 
 export interface FaultServerOptions {
   mode: FaultMode;
@@ -22,6 +31,10 @@ function handleRequest(
   options: FaultServerOptions,
 ): void {
   if (request.method === 'GET' && request.url === '/healthz') {
+    if (options.mode === 'warmup-failure') {
+      json(response, 503, { status: 'unavailable', model_loaded: false });
+      return;
+    }
     json(response, 200, { status: 'ok', model_loaded: true });
     return;
   }
@@ -32,10 +45,13 @@ function handleRequest(
 
   let body = '';
   request.setEncoding('utf8');
-  request.on('data', (chunk: string) => { body += chunk; });
+  request.on('data', (chunk: string) => {
+    body += chunk;
+  });
   request.on('end', () => {
     if (options.mode === 'timeout') {
-      setTimeout(() => response.destroy(), options.delayMs ?? 60_000);
+      const timeout = setTimeout(() => response.destroy(), options.delayMs ?? 60_000);
+      response.on('close', () => clearTimeout(timeout));
       return;
     }
     if (options.mode === 'network-error') {
@@ -72,7 +88,7 @@ function handleRequest(
       request_id: requestId,
       model_name: 'fault-server',
       model_version: 'fault-server-1',
-      p_fake: 0.5,
+      p_fake: options.mode === 'out-of-range' ? 1.5 : 0.5,
       latency_ms: 1,
     });
   });

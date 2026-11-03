@@ -11,6 +11,7 @@
 import { type PoolClient } from '../db/pool.js';
 import { AppError } from '../middleware/appError.js';
 import { createEventsForAssessment, type AssessmentRecord } from './events.js';
+import { lockOpenWave } from './waveLock.js';
 
 export interface OldAssessmentParam {
   id: string;
@@ -38,15 +39,7 @@ export interface SupersedeResult {
  * Lock and retrieve the currently open wave id.
  */
 async function getOpenWaveId(tx: PoolClient): Promise<string> {
-  const res = await tx.query<{ id: string }>(
-    `SELECT id FROM waves WHERE status = 'open' FOR SHARE`,
-  );
-  const row = res.rows[0];
-  /* v8 ignore next 3 */
-  if (!row) {
-    throw new AppError(500, 'INTERNAL', 'No open wave found');
-  }
-  return row.id;
+  return lockOpenWave(tx);
 }
 
 /**
@@ -127,6 +120,10 @@ export async function supersedeAssessment(
 
   // 4. Note: post label is computed dynamically by post_public_status_v view
 
+  // Lock the wave before reading event statuses: a concurrent finalization
+  // must finish before we decide whether to void or reverse each event.
+  const openWaveId = await getOpenWaveId(tx);
+
   // 5. Cascade across events attached to the old assessment
   const oldEventsRes = await tx.query<{
     id: string;
@@ -145,7 +142,6 @@ export async function supersedeAssessment(
 
   let voidedCount = 0;
   let reversalsCreated = 0;
-  const openWaveId = await getOpenWaveId(tx);
 
   for (const ev of oldEventsRes.rows) {
     if (ev.status === 'eligible' || ev.status === 'held') {

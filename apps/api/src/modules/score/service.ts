@@ -4,7 +4,7 @@
  * Scoring domain service: pending aggregates, ledger history, events, appeals, and visibility rules.
  */
 
-import { withTransaction } from '../../db/tx.js';
+export { appealEvent } from '../governance/appeals.js';
 import { config } from '../../config.js';
 import { AppError } from '../../middleware/errors.js';
 import { encodeCursor, decodeCursor, type DecodedCursor } from '../../db/cursor.js';
@@ -19,8 +19,6 @@ import {
   findUserLedgerByWaveNumber,
   findEventsForWaveAndUser,
   findUserEvents,
-  findEventByIdAndUser,
-  insertAppeal,
   findUserAppeals,
   type LedgerJoinedRow,
   type EventJoinedRow,
@@ -276,63 +274,6 @@ export async function getMyEvents(
   }
 
   return { items, nextCursor };
-}
-
-export async function appealEvent(
-  userId: string,
-  eventId: string,
-  input: { reason: string },
-): Promise<{ id: string; status: 'open' }> {
-  const event = await findEventByIdAndUser(eventId, userId);
-  if (!event) {
-    throw new AppError(404, 'NOT_FOUND', 'Event not found');
-  }
-
-  // RUL-016: negative events only
-  const allowedKinds = ['MISINFO_POST', 'MISINFO_RESHARE', 'MISINFO_LIKE'];
-  if (!allowedKinds.includes(event.kind)) {
-    throw new AppError(
-      400,
-      'INVALID_APPEAL',
-      'Only negative reputation events can be appealed',
-    );
-  }
-
-  if (event.has_appeal) {
-    throw new AppError(
-      409,
-      'ALREADY_EXISTS',
-      'An appeal already exists for this event',
-    );
-  }
-
-  if (event.status === 'voided') {
-    throw new AppError(400, 'INVALID_APPEAL', 'Cannot appeal a voided event');
-  }
-
-  // Check window
-  const windowMs = config.APPEAL_WINDOW_DAYS * 24 * 60 * 60 * 1000;
-  const expiresAt = new Date(event.assessment_created_at).getTime() + windowMs;
-  if (Date.now() > expiresAt) {
-    throw new AppError(
-      409,
-      'APPEAL_WINDOW_EXPIRED',
-      'Appeal window has expired',
-    );
-  }
-
-  return withTransaction(async (tx) => {
-    const appeal = await insertAppeal(
-      {
-        eventId: event.id,
-        assessmentId: event.assessment_id,
-        appellantId: userId,
-        reason: input.reason,
-      },
-      tx,
-    );
-    return { id: appeal.id, status: 'open' };
-  });
 }
 
 export async function getMyAppeals(

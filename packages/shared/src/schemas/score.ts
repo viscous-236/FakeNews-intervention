@@ -4,9 +4,11 @@
 
 import { z } from 'zod';
 
-export const appealSchema = z.object({
-  reason: z.string().min(20).max(1000),
-});
+export const appealSchema = z
+  .object({
+    reason: z.string().trim().min(20).max(1000),
+  })
+  .strict();
 export type AppealInput = z.infer<typeof appealSchema>;
 
 export const listEventsQuerySchema = z.object({

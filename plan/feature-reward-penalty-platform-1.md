@@ -2,7 +2,7 @@
 goal: Build a production-grade Twitter-like platform with a real fake-news detector and the paper's wave-based reward-penalty scoring framework (Q(w+1) = Q(w) + sigma * R(w)), with no mocked components
 version: 2.0
 date_created: 2026-10-14
-last_updated: 2026-10-27
+last_updated: 2026-11-03
 owner: Project owner (undergraduate CS mini project, extended scope)
 status: 'In progress - v2.0 audit pass'
 tags: [feature, architecture, full-stack, machine-learning, scoring, governance]
@@ -10,7 +10,7 @@ tags: [feature, architecture, full-stack, machine-learning, scoring, governance]
 
 # Introduction
 
-![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
+![Status: In progress](https://img.shields.io/badge/status-In_progress-blue)
 
 This plan is the single source of truth for building the platform end to end. It is written for autonomous execution by a coding agent or a human. Every binding decision (stack, schema, API, scoring rules, detector behaviour, configuration values) is stated in Section 1. Section 2 contains ordered, atomic tasks grouped into phases. Section 9 provides the complete Traceability Matrix mapping every audit finding and policy decision to its tasks and tests. Section 10 documents residual edge-case defaults and asks for confirmation where the paper and prior specification leave sub-details open.
 
@@ -1271,11 +1271,20 @@ Execution rules: complete tasks in numeric order within a phase; a phase may sta
 | Task | Description | Completed | Date |
 |---|---|---|---|
 | TASK-048 | Implement `src/detection/client.ts` and `src/detection/bands.ts` (RUL-027). Unit tests for error codes and band boundaries. | [x] | 2026-10-31 |
-| TASK-049 | Implement `src/detection/worker.ts` (RUL-026) with `FOR UPDATE SKIP LOCKED`, warm-up, backoff, and stale-running reset. | [ ] | |
-| TASK-050 | Implement `src/detection/effects.ts` (`post_flagged` notification on `likely_fake`; assert zero assessments/events created per REQ-009). | [ ] | |
-| TASK-051 | Implement admin detection endpoints (`POST /admin/posts/:id/redetect`, `POST /admin/detections/:id/requeue`, `GET /admin/detector/status`) and `GET /readyz`. | | |
-| TASK-052 | Implement `tools/fault-server/server.ts` and `apps/api/test/detection/failures.test.ts` (TEST-101). | [ ] | |
-| TASK-053 | Write `apps/api/test/detection/real-detector.test.ts` (TEST-102) against the real detector container and wire into CI. | | |
+| TASK-049 | Implement `src/detection/worker.ts` (RUL-026) with `FOR UPDATE SKIP LOCKED`, warm-up, backoff, and stale-running reset. | [x] | 2026-11-03 |
+| TASK-050 | Implement `src/detection/effects.ts` (`post_flagged` notification on `likely_fake`; assert zero assessments/events created per REQ-009). | [x] | 2026-11-03 |
+| TASK-051 | Implement admin detection endpoints (`POST /admin/posts/:id/redetect`, `POST /admin/detections/:id/requeue`, `GET /admin/detector/status`) and `GET /readyz`. | [x] | 2026-11-03 |
+| TASK-052 | Implement `tools/fault-server/server.ts` and `apps/api/test/detection/failures.test.ts` (TEST-101). | [x] | 2026-11-03 |
+| TASK-053 | Write `apps/api/test/detection/real-detector.test.ts` (TEST-102) against the real detector container and wire into CI. | [x] | 2026-11-03 |
+
+Verification (2026-11-03): local tests exercise PostgreSQL, real pretrained
+inference, original/edited revision persistence, after-commit notifications,
+zero prediction-derived scoring events, and a dedicated detector container
+stop/start with successful retry. Fault tests cover all seven client error
+codes, warm-up failure, retry exhaustion, backoff, stale claims, and row-lock
+contention. CI is wired to these tests; a hosted GitHub Actions run is not yet
+verified. Independent dataset evaluation and later governance/UI tasks remain
+separate outstanding work.
 
 ### Implementation Phase 7: Governance (reports, assessments, appeals, admin)
 
@@ -1293,13 +1302,21 @@ Execution rules: complete tasks in numeric order within a phase; a phase may sta
 
 | Task | Description | Completed | Date |
 |---|---|---|---|
-| TASK-054 | Implement `modules/governance/reports`: `POST /posts/:id/report` per RUL-020. Tests for own-post rejection (403), duplicate (409), deleted post (404), and entry into `review_queue_v` (both when unassessed and when currently `auto_real`). | | |
-| TASK-055 | Implement `modules/governance/assessments` and `POST /admin/posts/:id/assessments`: locks post row, enforces RUL-021 (author, resharer, reporter, or liker conflict of interest), rejects identical admin verdict with 409 `ALREADY_EXISTS` (while permitting `auto_real` -> admin real), calls `supersedeAssessment` or inserts first assessment, calls `createEventsForAssessment`, writes audit row, and creates notifications (`assessment_decided` for author, resharers, and penalized likers; `report_resolved` for reporters). | | |
-| TASK-056 | Implement `src/jobs/autoReal.ts` per RUL-014 (creates `RESPONSIBLE_POST` only, never `RESPONSIBLE_RESHARE`). Tests: each condition of RUL-014 blocks auto-real; later user report puts the `auto_real` post into `GET /admin/queue`. | [ ] | |
-| TASK-057 | Implement `modules/governance/appeals`: `POST /events/:id/appeal` (RUL-016: any non-voided negative event—`MISINFO_POST`, `MISINFO_RESHARE`, or `MISINFO_LIKE`—owned by caller within `APPEAL_WINDOW_DAYS`; sets eligible event to held with `wave_id = NULL`), `GET /me/appeals`, `appeal_opened` notification to admins. | | |
-| TASK-058 | Implement admin appeal endpoints (`GET /admin/appeals`, `POST /admin/appeals/:id/resolve`): `upheld` releases held event to open wave (RUL-008); `overturned` requires `newVerdict` (real or unverifiable) and rationale, calls `supersedeAssessment`, records `new_assessment_id`; enforces RUL-021. | | |
-| TASK-059 | Implement remaining admin endpoints in `modules/admin`: `GET /admin/queue` (reads `review_queue_v`), `GET /admin/posts/:id` (includes likes, reshares, reports, assessments, events, appeals), `POST /admin/posts/:id/release`, `DELETE /admin/posts/:id`, `GET /admin/users`, `GET /admin/users/:id`, `POST /admin/users/:id/suspend` and `/unsuspend`, `GET /admin/audit`, `GET /admin/waves`, `GET /admin/waves/:id/ledger`, `POST /admin/waves/:id/finalize`, `POST /admin/verify-scores`. | | |
-| TASK-060 | Write `apps/api/test/governance/rules.test.ts` covering TEST-050 through TEST-069 (including `MISINFO_LIKE` creation and appeal, `RESPONSIBLE_RESHARE` creation and cap, `auto_real` report escalation to queue and admin override, historical reporter `VALID_REPORT` recovery on supersede, Good-Faith Window protection on real -> fake overturn). | | |
+| TASK-054 | Implement `modules/governance/reports`: `POST /posts/:id/report` per RUL-020. Tests for own-post rejection (403), duplicate (409), deleted post (404), and entry into `review_queue_v` (both when unassessed and when currently `auto_real`). | [x] | 2026-11-03 |
+| TASK-055 | Implement `modules/governance/assessments` and `POST /admin/posts/:id/assessments`: locks post row, enforces RUL-021 (author, resharer, reporter, or liker conflict of interest), rejects identical admin verdict with 409 `ALREADY_EXISTS` (while permitting `auto_real` -> admin real), calls `supersedeAssessment` or inserts first assessment, calls `createEventsForAssessment`, writes audit row, and creates notifications (`assessment_decided` for author, resharers, and penalized likers; `report_resolved` for reporters). | [x] | 2026-11-03 |
+| TASK-056 | Implement `src/jobs/autoReal.ts` per RUL-014 (creates `RESPONSIBLE_POST` only, never `RESPONSIBLE_RESHARE`). Tests: each condition of RUL-014 blocks auto-real; later user report puts the `auto_real` post into `GET /admin/queue`. | [x] | 2026-11-03 |
+| TASK-057 | Implement `modules/governance/appeals`: `POST /events/:id/appeal` (RUL-016: any non-voided negative event—`MISINFO_POST`, `MISINFO_RESHARE`, or `MISINFO_LIKE`—owned by caller within `APPEAL_WINDOW_DAYS`; sets eligible event to held with `wave_id = NULL`), `GET /me/appeals`, `appeal_opened` notification to admins. | [x] | 2026-11-03 |
+| TASK-058 | Implement admin appeal endpoints (`GET /admin/appeals`, `POST /admin/appeals/:id/resolve`): `upheld` releases held event to open wave (RUL-008); `overturned` requires `newVerdict` (real or unverifiable) and rationale, calls `supersedeAssessment`, records `new_assessment_id`; enforces RUL-021. | [x] | 2026-11-03 |
+| TASK-059 | Implement remaining admin endpoints in `modules/admin`: `GET /admin/queue` (reads `review_queue_v`), `GET /admin/posts/:id` (includes likes, reshares, reports, assessments, events, appeals), `POST /admin/posts/:id/release`, `DELETE /admin/posts/:id`, `GET /admin/users`, `GET /admin/users/:id`, `POST /admin/users/:id/suspend` and `/unsuspend`, `GET /admin/audit`, `GET /admin/waves`, `GET /admin/waves/:id/ledger`, `POST /admin/waves/:id/finalize`, `POST /admin/verify-scores`. | [x] | 2026-11-03 |
+| TASK-060 | Write `apps/api/test/governance/rules.test.ts` covering TEST-050 through TEST-069 (including `MISINFO_LIKE` creation and appeal, `RESPONSIBLE_RESHARE` creation and cap, `auto_real` report escalation to queue and admin override, historical reporter `VALID_REPORT` recovery on supersede, Good-Faith Window protection on real -> fake overturn). | [x] | 2026-11-03 |
+
+Verification (2026-11-03): 57 governance and appeal tests pass against real
+PostgreSQL. Coverage includes all negative event kinds, ownership and appeal
+windows, held-event release, counted-event immutability, overturned assessment
+cascades, peer appeal closure, admin conflict checks, cursor pagination with
+equal timestamps, after-commit notifications, audit rows, duplicate requests,
+and concurrent wave rollover. TASK-059 admin inventory, user, wave, audit,
+and score-verification endpoints pass six additional real-database tests.
 
 ### Implementation Phase 8: Social features
 

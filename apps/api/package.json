@@ -4,7 +4,7 @@
   "private": true,
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-migrations.cjs",
     "typecheck": "tsc --noEmit",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",

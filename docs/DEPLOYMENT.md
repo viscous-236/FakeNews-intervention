@@ -131,3 +131,44 @@ GET  /v1/model-info   — model metadata (requires X-Detector-Key)
 ```
 
 Port: 8001 (local), 80/443 (production via Render).
+
+## API Detection Operations
+
+- `GET /readyz` returns `{db, migrations, detector}` booleans. HTTP 200 requires
+  a reachable database and every bundled SQL migration in `pgmigrations`.
+  Detector downtime is reported but does not prevent the API serving posts.
+  Missing migration files or unapplied migrations return HTTP 503.
+- `GET /api/v1/admin/detector/status` returns live health and model metadata;
+  unavailable metadata is `null`.
+- `POST /api/v1/admin/posts/:id/redetect` queues the current original-post
+  revision and returns HTTP 202 `{detectionId}`.
+- `POST /api/v1/admin/detections/:id/requeue` accepts only `failed_permanent`
+  jobs, resets retry state, and returns HTTP 202. Other states return 409.
+- Both queue mutations require an active verified administrator and record an
+  audit entry. Neither changes assessments or reputation.
+
+The worker reads historical text for old revisions and fences completion by the
+claim timestamp, so an expired worker cannot overwrite a replacement claim.
+Notifications are published after the database commit. The API build copies
+SQL migrations into `dist/db/migrations` for production readiness checks.
+
+## Governance and Appeals
+
+- `POST /api/v1/events/:id/appeal` accepts a 20–1000 character reason for an
+  owned, non-voided negative event during `APPEAL_WINDOW_DAYS`. Eligible events
+  become held and leave the current wave. Admins receive `appeal_opened`.
+- `GET /api/v1/me/appeals` lists the caller's appeals with cursor pagination.
+- `GET /api/v1/admin/appeals` supports `status`, `limit`, and cursor filters.
+- `POST /api/v1/admin/appeals/:id/resolve` accepts `upheld` or `overturned`.
+  Upheld held events return to the open wave. Overturned appeals require
+  `newVerdict` (`real` or `unverifiable`) and rationale, then supersede the
+  assessment and record `new_assessment_id`.
+- Appeal resolution enforces administrator conflict-of-interest checks,
+  immutable counted events, append-only audit records, and after-commit
+  `appeal_resolved` notifications.
+
+Administrator operations also expose `GET /api/v1/admin/users`,
+`GET /api/v1/admin/users/:id`, suspend/unsuspend actions, post release/delete,
+`GET /api/v1/admin/audit`, wave and ledger inspection, wave finalization, and
+`POST /api/v1/admin/verify-scores`. These routes require an active verified
+administrator; mutating actions create audit records.

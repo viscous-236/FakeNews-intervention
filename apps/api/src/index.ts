@@ -56,7 +56,7 @@ const shutdown = (signal: string): void => {
   shuttingDown = true;
   logger.info({ signal }, 'Shutdown signal received');
 
-  stopDetectionWorker();
+  const detectionStopped = stopDetectionWorker();
   stopAutoReal();
   stopWaveScheduler();
   stopEmailOutbox();
@@ -64,7 +64,7 @@ const shutdown = (signal: string): void => {
 
   server.close(() => {
     logger.info('HTTP server closed');
-    void closePool().then(() => process.exit(0));
+    void detectionStopped.then(() => closePool()).then(() => process.exit(0));
   });
 
   // Force exit after 20 s

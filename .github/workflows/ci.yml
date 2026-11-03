@@ -57,18 +57,6 @@ jobs:
         ports:
           - 5432:5432
 
-      minio:
-        image: minio/minio:latest
-        env:
-          MINIO_ROOT_USER: minioadmin
-          MINIO_ROOT_PASSWORD: minioadmin
-        options: >-
-          --health-cmd "curl -f http://localhost:9000/minio/health/live"
-          --health-interval 10s
-          --health-retries 5
-        ports:
-          - 9000:9000
-
       mailpit:
         image: axllent/mailpit:latest
         ports:
@@ -112,12 +100,21 @@ jobs:
         run: |
           PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE app_test;" || true
 
-      - name: Create MinIO bucket
+      - name: Start S3 storage using the development Compose service
         run: |
-          docker run --rm --network host minio/mc:latest \
-            sh -c "mc alias set local http://localhost:9000 minioadmin minioadmin && \
-                   mc mb --ignore-existing local/app-media && \
-                   mc anonymous set download local/app-media"
+          docker compose up -d seaweedfs
+          node --input-type=module <<'JS'
+          import { S3Client, ListBucketsCommand } from '@aws-sdk/client-s3';
+          import { setTimeout } from 'node:timers/promises';
+          const client = new S3Client({ endpoint: process.env.S3_ENDPOINT,
+            region: process.env.S3_REGION, forcePathStyle: true, maxAttempts: 1,
+            credentials: { accessKeyId: process.env.S3_ACCESS_KEY_ID,
+              secretAccessKey: process.env.S3_SECRET_ACCESS_KEY } });
+          for (let attempt = 0; attempt < 30; attempt++) {
+            try { await client.send(new ListBucketsCommand({})); client.destroy(); process.exit(0); }
+            catch (error) { if (attempt === 29) throw error; await setTimeout(2000); }
+          }
+          JS
 
       - name: Build detector image
         run: docker build --tag fakenews-detector:ci services/detector
@@ -135,6 +132,8 @@ jobs:
           exit 1
 
       - name: Run API tests
+        env:
+          REAL_DETECTOR_CONTAINER: fakenews-detector
         run: npm run test -w apps/api
 
   # --------------------------------------------------------------------------
@@ -218,9 +217,9 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-       - name: Install pip-audit
-         run: python -m pip install pip-audit
+      - name: Install pip-audit
+        run: python -m pip install pip-audit
 
-       - name: pip-audit
-         working-directory: services/detector
-         run: pip-audit -r requirements.txt
+      - name: pip-audit
+        working-directory: services/detector
+        run: pip-audit -r requirements.txt

@@ -7,6 +7,7 @@
 
 import { type PoolClient } from '../db/pool.js';
 import { config } from '../config.js';
+import { lockOpenWave } from './waveLock.js';
 
 export interface AssessmentRecord {
   id: string;
@@ -28,15 +29,7 @@ interface TimeWindow {
  * Lock and retrieve the currently open wave.
  */
 async function getOpenWaveId(tx: PoolClient): Promise<string> {
-  const res = await tx.query<{ id: string }>(
-    `SELECT id FROM waves WHERE status = 'open' FOR SHARE`,
-  );
-  const row = res.rows[0];
-  /* v8 ignore next 3 */
-  if (!row) {
-    throw new Error('No open wave found');
-  }
-  return row.id;
+  return lockOpenWave(tx);
 }
 
 /**
@@ -49,6 +42,9 @@ async function checkEventCap(
   kind: 'RESPONSIBLE_POST' | 'RESPONSIBLE_RESHARE' | 'VALID_REPORT',
   maxCap: number,
 ): Promise<{ status: 'eligible' | 'voided'; voidReason: 'cap_exceeded' | null; waveId: string | null }> {
+  // Serialize count-and-insert across different posts for the same user.
+  // NO KEY UPDATE remains compatible with foreign-key KEY SHARE locks.
+  await tx.query('SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE', [userId]);
   const countRes = await tx.query<{ count: string }>(
     `SELECT count(*) AS count FROM reputation_events
      WHERE wave_id = $1 AND user_id = $2 AND kind = $3 AND status <> 'voided'`,
@@ -117,6 +113,16 @@ export async function createEventsForAssessment(
   reversalsCreated: number;
 }> {
   const openWaveId = await getOpenWaveId(tx);
+
+  // Assessments may reward several users. Acquire their cap locks in a stable
+  // order before inserting any event to avoid cross-post lock-order cycles.
+  await tx.query(
+    `SELECT id FROM users WHERE id IN (
+       SELECT author_id FROM posts WHERE id = $1 OR reshare_of_post_id = $1
+       UNION SELECT reporter_id FROM reports WHERE post_id = $1
+     ) ORDER BY id FOR NO KEY UPDATE`,
+    [assessment.post_id],
+  );
 
   const postRes = await tx.query<{ id: string; author_id: string }>(
     `SELECT id, author_id FROM posts WHERE id = $1`,

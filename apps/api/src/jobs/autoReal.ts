@@ -9,6 +9,7 @@ import { type PoolClient } from '../db/pool.js';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
 import { createEventsForAssessment, type AssessmentRecord } from '../scoring/events.js';
+import { lockOpenWave } from '../scoring/waveLock.js';
 
 export const AUTO_REAL_LOCK_ID = 42005;
 const AUTO_REAL_RATIONALE = 'Automated: low model risk, no reports, review window elapsed.';
@@ -20,6 +21,7 @@ async function runAutoRealTransaction(tx: PoolClient): Promise<number> {
     [AUTO_REAL_LOCK_ID],
   );
   if (!lock.rows[0]?.locked) return 0;
+  await lockOpenWave(tx);
 
   const candidates = await tx.query<{
     post_id: string;
@@ -37,7 +39,9 @@ async function runAutoRealTransaction(tx: PoolClient): Promise<number> {
        AND NOT EXISTS (SELECT 1 FROM assessments a WHERE a.post_id = p.id)
        AND NOT EXISTS (SELECT 1 FROM reports r WHERE r.post_id = p.id)
      ORDER BY p.created_at ASC, p.id ASC
-     LIMIT 25`,
+      LIMIT 25
+      FOR UPDATE OF p SKIP LOCKED
+      FOR SHARE OF u SKIP LOCKED`,
     [config.REAL_THRESHOLD_LOW, String(config.AUTO_REAL_DELAY_MINUTES)],
   );
 

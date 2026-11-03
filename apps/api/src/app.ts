@@ -23,6 +23,7 @@ import { scoreRouter } from './modules/score/routes.js';
 import { governanceRouter } from './modules/governance/routes.js';
 import { adminRouter } from './modules/admin/routes.js';
 import { socialRouter } from './modules/social/routes.js';
+import { detectionAdminRouter } from './modules/admin/detectionRoutes.js';
 import { securityMiddleware } from './middleware/security.js';
 import { originCheck } from './middleware/originCheck.js';
 import { errorHandler, notFoundHandler, AppError, ErrorEnvelope } from './middleware/errors.js';
@@ -83,6 +84,7 @@ export function createApp(): express.Application {
   apiV1.use(scoreRouter);
   apiV1.use(governanceRouter);
   apiV1.use(adminRouter);
+  apiV1.use(detectionAdminRouter);
   apiV1.use(socialRouter);
   app.use('/api/v1', apiV1);
 

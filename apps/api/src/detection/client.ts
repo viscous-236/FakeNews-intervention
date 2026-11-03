@@ -132,6 +132,7 @@ export async function predict(options: PredictOptions): Promise<DetectorPredicti
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   let response: Response;
+  let responseText: string;
   try {
     response = await fetch(url, {
       method: 'POST',
@@ -142,6 +143,8 @@ export async function predict(options: PredictOptions): Promise<DetectorPredicti
       body: JSON.stringify(requestBody),
       signal: controller.signal,
     });
+    // Keep the deadline active through the body, not just response headers.
+    responseText = await response.text();
   } catch (err: unknown) {
     clearTimeout(timeoutId);
     if ((err as { name?: string }).name === 'AbortError') {
@@ -165,9 +168,9 @@ export async function predict(options: PredictOptions): Promise<DetectorPredicti
     const status = response.status;
     let errBody: unknown;
     try {
-      errBody = await response.json();
+      errBody = JSON.parse(responseText);
     } catch {
-      errBody = await response.text().catch(() => null);
+      errBody = responseText;
     }
 
     if (status === 401) {
@@ -206,7 +209,7 @@ export async function predict(options: PredictOptions): Promise<DetectorPredicti
   // Parse JSON body
   let rawJson: unknown;
   try {
-    rawJson = await response.json();
+    rawJson = JSON.parse(responseText);
   } catch (err: unknown) {
     throw new DetectorClientError(
       'MALFORMED_RESPONSE',
@@ -266,11 +269,13 @@ export async function checkDetectorHealth(
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   let response: Response;
+  let responseText: string;
   try {
     response = await fetch(url, {
       method: 'GET',
       signal: controller.signal,
     });
+    responseText = await response.text();
   } catch (err: unknown) {
     clearTimeout(timeoutId);
     if ((err as { name?: string }).name === 'AbortError') {
@@ -294,7 +299,7 @@ export async function checkDetectorHealth(
   }
 
   try {
-    const json = await response.json();
+    const json: unknown = JSON.parse(responseText);
     const parsed = detectorHealthResponseSchema.safeParse(json);
     if (!parsed.success) {
       return { ok: false, modelLoaded: false };
@@ -329,6 +334,7 @@ export async function getDetectorModelInfo(
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   let response: Response;
+  let responseText: string;
   try {
     response = await fetch(url, {
       method: 'GET',
@@ -337,6 +343,7 @@ export async function getDetectorModelInfo(
       },
       signal: controller.signal,
     });
+    responseText = await response.text();
   } catch (err: unknown) {
     clearTimeout(timeoutId);
     if ((err as { name?: string }).name === 'AbortError') {
@@ -372,7 +379,7 @@ export async function getDetectorModelInfo(
 
   let rawJson: unknown;
   try {
-    rawJson = await response.json();
+    rawJson = JSON.parse(responseText);
   } catch (err: unknown) {
     throw new DetectorClientError(
       'MALFORMED_RESPONSE',

@@ -8,6 +8,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate, requireAuth, requireActive } from '../../middleware/auth.js';
 import { appealsLimiter } from '../../middleware/rateLimit.js';
 import { validate } from '../../middleware/validate.js';
+import { z } from 'zod';
 import {
   appealSchema,
   listEventsQuerySchema,
@@ -124,7 +125,7 @@ scoreRouter.post(
   '/events/:id/appeal',
   requireActive,
   appealsLimiter,
-  validate({ body: appealSchema }),
+  validate({ body: appealSchema, params: z.object({ id: z.string().uuid() }).strict() }),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const result = await appealEvent(

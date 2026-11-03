@@ -12,6 +12,7 @@ export async function createReport(
   postId: string,
   reporterId: string,
   input: CreateReportInput,
+  reporterRole: 'user' | 'admin' = 'user',
 ): Promise<{ id: string }> {
   return withTransaction(async (tx) => {
     const postResult = await tx.query<{
@@ -33,15 +34,19 @@ export async function createReport(
     if (post.author_id === reporterId) {
       throw new AppError(403, 'CONFLICT_OF_INTEREST', 'You cannot report your own post');
     }
+    if (post.status === 'held' && reporterRole !== 'admin') {
+      throw new AppError(404, 'NOT_FOUND', 'Post not found');
+    }
 
     const result = await tx.query<{ id: string }>(
       `INSERT INTO reports (post_id, reporter_id, reason, details)
        VALUES ($1, $2, $3, $4)
+       ON CONFLICT (post_id, reporter_id) DO NOTHING
        RETURNING id`,
       [postId, reporterId, input.reason, input.details ?? ''],
     );
     const report = result.rows[0];
-    if (!report) throw new AppError(500, 'INTERNAL', 'Report was not created');
+    if (!report) throw new AppError(409, 'ALREADY_EXISTS', 'You already reported this post');
     return report;
   });
 }

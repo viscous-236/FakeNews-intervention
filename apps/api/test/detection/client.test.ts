@@ -67,6 +67,21 @@ describe('Detector Client (TASK-048, Section 1.6)', () => {
 
   const testApiKey = 'secret_test_detector_key';
 
+  it('times out stalled response bodies for predict, health, and model-info', async () => {
+    handler = (_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.write('{');
+      // Deliberately never finish the response; the client must abort it.
+    };
+    const calls = [
+      () => predict({ requestId: crypto.randomUUID(), postId: crypto.randomUUID(),
+        text: 'A claim for a stalled response', baseUrl, timeoutMs: 100 }),
+      () => checkDetectorHealth({ baseUrl, timeoutMs: 100 }),
+      () => getDetectorModelInfo({ baseUrl, timeoutMs: 100 }),
+    ];
+    for (const call of calls) await expect(call()).rejects.toMatchObject({ errorCode: 'TIMEOUT' });
+  });
+
   // -------------------------------------------------------------------------
   // Success Case
   // -------------------------------------------------------------------------

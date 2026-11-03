@@ -279,6 +279,7 @@ export async function findEventByIdAndUser(
   status: string;
   assessment_id: string;
   assessment_created_at: Date;
+  post_id: string;
   has_appeal: boolean;
 } | null> {
   const executor = client ?? getPool();
@@ -289,6 +290,7 @@ export async function findEventByIdAndUser(
     status: string;
     assessment_id: string;
     assessment_created_at: Date;
+    post_id: string;
     has_appeal: boolean;
   }>(
     `SELECT
@@ -296,12 +298,14 @@ export async function findEventByIdAndUser(
        e.user_id,
        e.kind,
        e.status,
-       e.assessment_id,
-       a.created_at AS assessment_created_at,
+        e.assessment_id,
+        e.post_id,
+        a.created_at AS assessment_created_at,
        EXISTS(SELECT 1 FROM appeals WHERE event_id = e.id) AS has_appeal
      FROM reputation_events e
      JOIN assessments a ON a.id = e.assessment_id
-     WHERE e.id = $1 AND e.user_id = $2`,
+      WHERE e.id = $1 AND e.user_id = $2
+      ${client ? 'FOR UPDATE OF e' : ''}`,
     [eventId, userId],
   );
 
@@ -366,12 +370,12 @@ export async function findUserAppeals(
        created_at,
        resolved_at
      FROM appeals
-     WHERE appellant_id = $1
-       AND (
-         $2::timestamptz IS NULL
-         OR (created_at, id) < ($2, $3::uuid)
-       )
-     ORDER BY created_at DESC, id DESC
+      WHERE appellant_id = $1
+        AND (
+          $2::timestamptz IS NULL
+          OR (date_trunc('milliseconds', created_at), id) < ($2, $3::uuid)
+        )
+      ORDER BY date_trunc('milliseconds', created_at) DESC, id DESC
      LIMIT $4`,
     [userId, cursorCreatedAt, cursorId, limitPlusOne],
   );

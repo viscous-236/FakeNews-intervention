@@ -50,12 +50,31 @@ npm run dev -w apps/web      # Web on :5173
 
 ## Running Tests
 
+API tests use the real PostgreSQL, S3, SMTP, and detector services. The detector
+integration test stops and restarts a **dedicated test container**. Start it and
+set its name before running the API suite:
+
+```powershell
+docker build -t fakenews-detector:test services/detector
+docker run -d --name fakenews-detector-tests -p 127.0.0.1:18001:8001 -e DETECTOR_API_KEY=test-detector-key fakenews-detector:test
+$env:DETECTOR_URL = 'http://127.0.0.1:18001'
+$env:REAL_DETECTOR_CONTAINER = 'fakenews-detector-tests'
+```
+
+In Bash, use `export DETECTOR_URL=http://127.0.0.1:18001` and
+`export REAL_DETECTOR_CONTAINER=fakenews-detector-tests`. The image downloads
+the pinned model on the first build; prediction runs locally. After testing,
+stop the dedicated container with `docker stop fakenews-detector-tests`.
+
 ```bash
 # All workspaces
 npm test
 
 # API only
 npm test -w apps/api
+
+# Detection integration and fault-handling tests only
+npm test -w apps/api -- test/detection
 
 # Web only
 npm test -w apps/web
