@@ -130,7 +130,7 @@ export const PostCard: React.FC<PostCardProps> = ({
 
   // Reshare Confirm
   const handleConfirmReshare = async (comment?: string) => {
-    await api.post<{ post: Post }>('/api/v1/posts', {
+    await api.post<Post | { post: Post }>('/api/v1/posts', {
       kind: 'reshare',
       reshareOfId: currentPost.id,
       body: comment,

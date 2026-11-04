@@ -30,13 +30,14 @@ export const PostDetailPage: React.FC = () => {
     setError(null);
 
     Promise.all([
-      api.get<{ post: Post }>(`/api/v1/posts/${id}`),
+      api.get<Post | { post: Post }>(`/api/v1/posts/${id}`),
       api.get<PaginatedResponse<Comment>>(`/api/v1/posts/${id}/comments`),
     ])
       .then(([postRes, commentsRes]) => {
         if (!mounted) return;
-        setPost(postRes.post);
-        setComments(commentsRes.items);
+        const loadedPost = postRes && 'post' in postRes && postRes.post ? postRes.post : (postRes as Post);
+        setPost(loadedPost);
+        setComments(commentsRes?.items || []);
       })
       .catch((err: unknown) => {
         if (!mounted) return;
@@ -57,10 +58,11 @@ export const PostDetailPage: React.FC = () => {
 
     try {
       setIsSubmittingComment(true);
-      const res = await api.post<{ comment: Comment }>(`/api/v1/posts/${id}/comments`, {
+      const res = await api.post<Comment | { comment: Comment }>(`/api/v1/posts/${id}/comments`, {
         body: newCommentBody.trim(),
       });
-      setComments((prev) => [res.comment, ...prev]);
+      const createdComment = res && 'comment' in res && res.comment ? res.comment : (res as Comment);
+      setComments((prev) => [createdComment, ...prev]);
       setNewCommentBody('');
       if (post) {
         setPost({
@@ -78,7 +80,7 @@ export const PostDetailPage: React.FC = () => {
   const handleDeleteComment = async (commentId: string) => {
     if (!id || !window.confirm(copy.comments.deleteConfirm)) return;
     try {
-      await api.delete(`/api/v1/posts/${id}/comments/${commentId}`);
+      await api.delete(`/api/v1/comments/${commentId}`);
       setComments((prev) => prev.filter((c) => c.id !== commentId));
       if (post) {
         setPost({

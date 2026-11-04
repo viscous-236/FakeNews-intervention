@@ -49,13 +49,13 @@ export const ScorePage: React.FC = () => {
       setIsLoading(true);
       setError(null);
       const [scoreRes, ledgerRes, eventsRes] = await Promise.all([
-        api.get<ScoreResponse>('/api/v1/score'),
-        api.get<PaginatedResponse<LedgerRow>>('/api/v1/score/ledger'),
-        api.get<PaginatedResponse<EventItem>>('/api/v1/score/events'),
+        api.get<ScoreResponse>('/api/v1/me/score'),
+        api.get<PaginatedResponse<LedgerRow>>('/api/v1/me/score/history'),
+        api.get<PaginatedResponse<EventItem>>('/api/v1/me/events'),
       ]);
       setScoreData(scoreRes);
-      setLedger(ledgerRes.items);
-      setEvents(eventsRes.items);
+      setLedger(ledgerRes?.items || []);
+      setEvents(eventsRes?.items || []);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : copy.error);
     } finally {
@@ -71,30 +71,22 @@ export const ScorePage: React.FC = () => {
     try {
       setIsLoadingExplanation(true);
       const res = await api.get<{
-        waveNumber: number;
-        formula: string;
-        qBefore: string;
-        sigma: string;
-        nPos: number;
-        nNeg: number;
-        nAdj: number;
-        r: number;
-        delta: string;
-        qAfter: string;
-        countedEvents: EventItem[];
-      }>(`/api/v1/score/explain/${waveNumber}`);
+        row: LedgerRow;
+        events: EventItem[];
+      }>(`/api/v1/me/score/history/${waveNumber}`);
 
+      const row = res.row;
       setDrawerData({
-        waveNumber: res.waveNumber,
-        qBefore: res.qBefore,
-        sigma: res.sigma,
-        nPos: res.nPos,
-        nNeg: res.nNeg,
-        nAdj: res.nAdj,
-        r: res.r,
-        delta: res.delta,
-        qAfter: res.qAfter,
-        countedEvents: res.countedEvents || [],
+        waveNumber: row.waveNumber,
+        qBefore: row.qBefore,
+        sigma: row.sigmaUsed,
+        nPos: row.nPos,
+        nNeg: row.nNeg,
+        nAdj: row.nAdj,
+        r: row.r,
+        delta: row.delta,
+        qAfter: row.qAfter,
+        countedEvents: res.events || [],
       });
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Failed to fetch wave explanation.');

@@ -5,10 +5,14 @@ import { api } from '../../api/client';
 import { CheckCheck, CheckCircle2, AlertOctagon, ShieldCheck } from 'lucide-react';
 
 interface InvariantResult {
-  passed: boolean;
+  ok?: boolean;
+  passed?: boolean;
   issues: Array<{
     invariant: string;
-    message: string;
+    message?: string;
+    userId?: string;
+    expected?: string;
+    actual?: string;
   }>;
 }
 
@@ -21,7 +25,7 @@ export const AdminVerifyPage: React.FC = () => {
     try {
       setIsRunning(true);
       setError(null);
-      const res = await api.post<InvariantResult>('/api/v1/admin/verify');
+      const res = await api.post<InvariantResult>('/api/v1/admin/verify-scores');
       setResult(res);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : copy.error);
@@ -74,7 +78,7 @@ export const AdminVerifyPage: React.FC = () => {
 
         {result && (
           <div className="pt-2">
-            {result.passed ? (
+            {(result.ok ?? result.passed ?? (result.issues?.length === 0)) ? (
               <div className="rounded-xl bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-900/60 p-4 text-xs text-green-800 dark:text-green-200 flex items-center gap-3">
                 <CheckCircle2 className="w-6 h-6 text-green-600 shrink-0" aria-hidden="true" />
                 <div>
@@ -87,13 +91,17 @@ export const AdminVerifyPage: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <AlertOctagon className="w-5 h-5 text-red-600 shrink-0" aria-hidden="true" />
                   <p className="font-bold text-sm">
-                    {copy.admin.verify.failed(result.issues.length)}
+                    {copy.admin.verify.failed(result.issues?.length ?? 0)}
                   </p>
                 </div>
                 <ul className="list-disc list-inside space-y-1 font-mono text-[11px]">
-                  {result.issues.map((issue, idx) => (
+                  {(result.issues || []).map((issue, idx) => (
                     <li key={idx}>
-                      <strong>{issue.invariant}:</strong> {issue.message}
+                      <strong>{issue.invariant}:</strong>{' '}
+                      {issue.message ||
+                        `expected ${issue.expected}, got ${issue.actual}${
+                          issue.userId ? ` (user: ${issue.userId})` : ''
+                        }`}
                     </li>
                   ))}
                 </ul>

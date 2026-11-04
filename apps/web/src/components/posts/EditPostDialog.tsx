@@ -35,11 +35,12 @@ export const EditPostDialog: React.FC<EditPostDialogProps> = ({
 
     try {
       setIsSubmitting(true);
-      const res = await api.patch<{ post: Post }>(`/api/v1/posts/${post.id}`, {
+      const res = await api.patch<Post | { post: Post }>(`/api/v1/posts/${post.id}`, {
         body: body.trim(),
         sourceUrl: sourceUrl.trim() ? sourceUrl.trim() : null,
       });
-      onSuccess(res.post);
+      const updated = res && 'post' in res && res.post ? res.post : (res as Post);
+      onSuccess(updated);
       onClose();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : copy.error);

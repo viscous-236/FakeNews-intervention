@@ -6,10 +6,9 @@ import { api } from '../../api/client';
 import { Waves, CheckCircle2, Loader2 } from 'lucide-react';
 
 interface CurrentWaveInfo {
+  id: string;
   number: number;
   openedAt: string;
-  pendingEventsCount: number;
-  activeUsersCount: number;
 }
 
 export const AdminWavesPage: React.FC = () => {
@@ -22,12 +21,39 @@ export const AdminWavesPage: React.FC = () => {
   const fetchWaveData = async () => {
     try {
       setIsLoading(true);
-      const [currentRes, historyRes] = await Promise.all([
-        api.get<CurrentWaveInfo>('/api/v1/admin/waves/current'),
-        api.get<{ waves: WaveItem[] }>('/api/v1/admin/waves'),
-      ]);
-      setCurrentWave(currentRes);
-      setHistory(historyRes.waves || []);
+      const res = await api.get<{
+        items: Array<{
+          id: string;
+          number: number;
+          status: 'open' | 'finalized';
+          opened_at?: string;
+          openedAt?: string;
+          finalized_at?: string | null;
+          finalizedAt?: string | null;
+        }>;
+      }>('/api/v1/admin/waves');
+
+      const items = res.items || [];
+      const open = items.find((w) => w.status === 'open');
+      if (open) {
+        setCurrentWave({
+          id: open.id,
+          number: open.number,
+          openedAt: open.opened_at || open.openedAt || new Date().toISOString(),
+        });
+      } else {
+        setCurrentWave(null);
+      }
+
+      setHistory(
+        items.map((w) => ({
+          id: w.id,
+          number: w.number,
+          status: w.status,
+          openedAt: w.opened_at || w.openedAt || new Date().toISOString(),
+          finalizedAt: w.finalized_at || w.finalizedAt || null,
+        }))
+      );
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : copy.error);
     } finally {
@@ -40,11 +66,12 @@ export const AdminWavesPage: React.FC = () => {
   }, []);
 
   const handleFinalizeWave = async () => {
+    if (!currentWave) return;
     if (!window.confirm(copy.admin.waves.finalizeConfirm)) return;
 
     try {
       setIsFinalizing(true);
-      await api.post('/api/v1/admin/waves/finalize');
+      await api.post(`/api/v1/admin/waves/${currentWave.id}/finalize`);
       await fetchWaveData();
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : copy.error);
@@ -106,7 +133,7 @@ export const AdminWavesPage: React.FC = () => {
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
             <div className="p-3 rounded-lg bg-neutral-50 dark:bg-neutral-850 border border-neutral-200 dark:border-neutral-700">
               <span className="text-neutral-400 block text-[11px]">Opened At</span>
               <span className="font-semibold text-neutral-800 dark:text-neutral-200">
@@ -115,16 +142,9 @@ export const AdminWavesPage: React.FC = () => {
             </div>
 
             <div className="p-3 rounded-lg bg-neutral-50 dark:bg-neutral-850 border border-neutral-200 dark:border-neutral-700">
-              <span className="text-neutral-400 block text-[11px]">Pending Eligible Events</span>
-              <span className="font-mono font-bold text-amber-600 dark:text-amber-400 text-sm">
-                {currentWave.pendingEventsCount}
-              </span>
-            </div>
-
-            <div className="p-3 rounded-lg bg-neutral-50 dark:bg-neutral-850 border border-neutral-200 dark:border-neutral-700">
-              <span className="text-neutral-400 block text-[11px]">Active Interacting Users</span>
-              <span className="font-mono font-bold text-neutral-800 dark:text-neutral-200 text-sm">
-                {currentWave.activeUsersCount}
+              <span className="text-neutral-400 block text-[11px]">Status</span>
+              <span className="font-mono font-bold text-green-600 dark:text-green-400 text-sm uppercase">
+                Active / Open
               </span>
             </div>
           </div>

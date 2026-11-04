@@ -84,7 +84,7 @@ export const AdminReviewWorkspacePage: React.FC = () => {
     try {
       setIsSubmitting(true);
       setError(null);
-      await api.post(`/api/v1/admin/posts/${id}/assess`, {
+      await api.post(`/api/v1/admin/posts/${id}/assessments`, {
         verdict,
         rationale: rationale.trim(),
       });

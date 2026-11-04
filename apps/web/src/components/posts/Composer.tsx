@@ -80,7 +80,7 @@ export const Composer: React.FC<ComposerProps> = ({
     setIsSubmitting(true);
 
     try {
-      const res = await api.post<{ post: Post }>('/api/v1/posts', {
+      const res = await api.post<Post | { post: Post }>('/api/v1/posts', {
         kind: 'original',
         body: body.trim(),
         sourceUrl: sourceUrl.trim() ? sourceUrl.trim() : undefined,
@@ -92,7 +92,8 @@ export const Composer: React.FC<ComposerProps> = ({
       setShowSourceInput(false);
       setImagePreviews([]);
       setMediaIds([]);
-      onPostCreated?.(res.post);
+      const created = res && 'post' in res && res.post ? res.post : (res as Post);
+      onPostCreated?.(created);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : copy.error);
     } finally {

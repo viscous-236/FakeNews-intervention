@@ -34,8 +34,8 @@ export const MessagesPage: React.FC = () => {
   // Load conversations
   const fetchConversations = useCallback(async () => {
     try {
-      const res = await api.get<{ conversations: ConversationItem[] }>('/api/v1/messages/conversations');
-      setConversations(res.conversations || []);
+      const res = await api.get<{ items: ConversationItem[] }>('/api/v1/messages/conversations');
+      setConversations(res.items || []);
     } catch {
       // ignore
     } finally {
@@ -56,10 +56,10 @@ export const MessagesPage: React.FC = () => {
     setError(null);
 
     api
-      .get<PaginatedResponse<MessageItem>>(`/api/v1/messages/${activeUsername}`)
+      .get<PaginatedResponse<MessageItem>>(`/api/v1/messages/with/${activeUsername}`)
       .then((res) => {
         if (!mounted) return;
-        setMessages(res.items.slice().reverse()); // Chronological
+        setMessages((res.items || []).slice().reverse()); // Chronological
         setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }, 100);
@@ -104,10 +104,14 @@ export const MessagesPage: React.FC = () => {
 
     try {
       setIsSending(true);
-      const res = await api.post<{ message: MessageItem }>(`/api/v1/messages/${activeUsername}`, {
-        body: newMessageText.trim(),
-      });
-      setMessages((prev) => [...prev, res.message]);
+      const res = await api.post<MessageItem | { message: MessageItem }>(
+        `/api/v1/messages/with/${activeUsername}`,
+        {
+          body: newMessageText.trim(),
+        },
+      );
+      const msg = res && 'message' in res && res.message ? res.message : (res as MessageItem);
+      setMessages((prev) => [...prev, msg]);
       setNewMessageText('');
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

@@ -38,11 +38,19 @@ export const AdminAppealsPage: React.FC = () => {
 
     try {
       setIsSubmitting(true);
-      await api.post(`/api/v1/admin/appeals/${selectedAppeal.id}/resolve`, {
-        decision,
-        resolutionNote: resolutionNote.trim(),
-        newVerdict: decision === 'overturned' ? newVerdict : undefined,
-      });
+      const payload =
+        decision === 'overturned'
+          ? {
+              decision: 'overturned' as const,
+              note: resolutionNote.trim(),
+              newVerdict: (newVerdict === 'real' ? 'real' : 'unverifiable') as 'real' | 'unverifiable',
+              rationale: resolutionNote.trim(),
+            }
+          : {
+              decision: 'upheld' as const,
+              note: resolutionNote.trim(),
+            };
+      await api.post(`/api/v1/admin/appeals/${selectedAppeal.id}/resolve`, payload);
       setSelectedAppeal(null);
       setResolutionNote('');
       await fetchAppeals();

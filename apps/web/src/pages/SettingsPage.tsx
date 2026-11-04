@@ -202,7 +202,7 @@ export const SettingsPage: React.FC = () => {
 
     try {
       setIsDeletingAccount(true);
-      await api.post('/api/v1/users/me/delete', { password: deletePassword });
+      await api.delete('/api/v1/users/me', { password: deletePassword });
       await logout();
     } catch (err: unknown) {
       setDeleteError(err instanceof Error ? err.message : copy.error);

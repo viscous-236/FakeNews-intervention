@@ -36,8 +36,7 @@ export const AppealDialog: React.FC<AppealDialogProps> = ({
 
     try {
       setIsSubmitting(true);
-      await api.post('/api/v1/appeals', {
-        eventId: event.id,
+      await api.post(`/api/v1/events/${event.id}/appeal`, {
         reason: reason.trim(),
       });
       setReason('');

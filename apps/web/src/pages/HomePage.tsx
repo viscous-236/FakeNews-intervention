@@ -37,8 +37,8 @@ export const HomePage: React.FC = () => {
     fetchFeed(activeTab)
       .then((data) => {
         if (!mounted) return;
-        setPosts(data.items);
-        setNextCursor(data.nextCursor);
+        setPosts(data?.items || []);
+        setNextCursor(data?.nextCursor || null);
       })
       .catch((err: unknown) => {
         if (!mounted) return;
@@ -58,9 +58,9 @@ export const HomePage: React.FC = () => {
     let mounted = true;
     if (me) {
       api
-        .get<{ users: UserSummary[] }>('/api/v1/users/suggestions')
+        .get<{ items: UserSummary[] }>('/api/v1/users/suggestions')
         .then((res) => {
-          if (mounted) setSuggestions(res.users);
+          if (mounted) setSuggestions(res.items || []);
         })
         .catch(() => {
           // ignore suggestions error
@@ -76,8 +76,8 @@ export const HomePage: React.FC = () => {
     try {
       setIsLoadingMore(true);
       const data = await fetchFeed(activeTab, nextCursor);
-      setPosts((prev) => [...prev, ...data.items]);
-      setNextCursor(data.nextCursor);
+      setPosts((prev) => [...prev, ...(data?.items || [])]);
+      setNextCursor(data?.nextCursor || null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : copy.error);
     } finally {
@@ -189,7 +189,7 @@ export const HomePage: React.FC = () => {
       {/* Right sidebar widget (Who to follow & Trust info) */}
       <aside className="hidden lg:block space-y-6" aria-label="Sidebar">
         {/* Who to follow card */}
-        {suggestions.length > 0 && (
+        {(suggestions?.length ?? 0) > 0 && (
           <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-4 shadow-sm">
             <div className="flex items-center gap-2 mb-3 pb-2 border-b border-neutral-100 dark:border-neutral-700">
               <Sparkles className="w-4 h-4 text-primary-600 dark:text-primary-400" aria-hidden="true" />
@@ -199,7 +199,7 @@ export const HomePage: React.FC = () => {
             </div>
 
             <div className="space-y-3">
-              {suggestions.slice(0, 5).map((user) => (
+              {(suggestions || []).slice(0, 5).map((user) => (
                 <div key={user.id} className="flex items-center justify-between gap-2">
                   <Link
                     to={`/u/${user.username}`}

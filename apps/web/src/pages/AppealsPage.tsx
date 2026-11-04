@@ -14,10 +14,10 @@ export const AppealsPage: React.FC = () => {
     setIsLoading(true);
 
     api
-      .get<PaginatedResponse<AppealItem>>('/api/v1/appeals')
+      .get<PaginatedResponse<AppealItem>>('/api/v1/me/appeals')
       .then((res) => {
         if (!mounted) return;
-        setAppeals(res.items);
+        setAppeals(res.items || []);
       })
       .catch((err: unknown) => {
         if (!mounted) return;

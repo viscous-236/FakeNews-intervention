@@ -30,8 +30,7 @@ export const ReportDialog: React.FC<ReportDialogProps> = ({
     setError(null);
     try {
       setIsSubmitting(true);
-      await api.post('/api/v1/reports', {
-        postId,
+      await api.post(`/api/v1/posts/${postId}/report`, {
         reason,
         details: details.trim() ? details.trim() : undefined,
       });
