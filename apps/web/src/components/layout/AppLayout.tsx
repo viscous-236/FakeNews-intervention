@@ -1,235 +1,350 @@
-import React from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+/**
+ * The shell: one tinted L-frame (sidebar + 48px top bar, no rule between
+ * them) and a white sheet inset 8px from the window's right and bottom
+ * edges. Colour lives only in data; the chrome stays grey.
+ */
+
+import React, { useCallback, useEffect, useState } from 'react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Home,
-  Search,
   Bell,
-  Mail,
-  Award,
-  User,
-  Settings,
-  Shield,
-  LogOut,
-  LogIn,
   FileText,
+  Home,
+  LogOut,
+  Mail,
+  Menu as MenuIcon,
+  Scale,
+  Search,
+  Settings,
+  ShieldCheck,
+  User,
+  X,
 } from 'lucide-react';
 import { useMe } from '../../context/AuthContext';
 import { copy } from '../../copy';
+import { useUnreadCount } from '../../api/hooks';
+import { useNotificationStream } from '../../hooks/useNotificationStream';
 import { Avatar } from '../ui/Avatar';
-import { TierBadge } from '../ui/Badge';
+import { CountBadge } from '../ui/Pill';
+import { Button } from '../ui/Button';
+import { AccountStatusBanner } from './AccountStatusBanner';
+
+interface NavItem {
+  label: string;
+  to: string;
+  icon: React.ComponentType<{ className?: string }>;
+  end?: boolean;
+  count?: number;
+}
+
+function Wordmark(): React.ReactElement {
+  return (
+    <NavLink to="/" className="flex items-center gap-2.5 text-ink" title={copy.app.name}>
+      <span
+        aria-hidden="true"
+        className="grid h-7 w-7 place-items-center rounded-control bg-accent text-[11px] font-semibold text-white"
+      >
+        Q
+      </span>
+      <span className="truncate text-body font-semibold leading-tight">{copy.app.shortName}</span>
+    </NavLink>
+  );
+}
+
+function NavList({
+  items,
+  onNavigate,
+}: {
+  items: NavItem[];
+  onNavigate?: () => void;
+}): React.ReactElement {
+  return (
+    <ul className="space-y-0.5">
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <li key={item.to}>
+            <NavLink
+              to={item.to}
+              end={item.end}
+              onClick={onNavigate}
+              className={({ isActive }) =>
+                `flex h-[34px] items-center gap-2.5 rounded-control px-2.5 text-body transition-colors ${
+                  isActive
+                    ? 'bg-active font-medium text-ink'
+                    : 'text-muted hover:bg-active/60 hover:text-ink'
+                }`
+              }
+            >
+              <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span className="flex-1 truncate">{item.label}</span>
+              {item.count ? (
+                <CountBadge count={item.count} label={copy.notifications.unreadCount(item.count)} />
+              ) : null}
+            </NavLink>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function SearchBox({ compact = false }: { compact?: boolean }): React.ReactElement {
+  const navigate = useNavigate();
+  const [value, setValue] = useState('');
+  return (
+    <form
+      role="search"
+      className={compact ? 'w-full' : 'w-full max-w-[548px]'}
+      onSubmit={(e) => {
+        e.preventDefault();
+        const q = value.trim();
+        if (q.length >= 2) navigate(`/search?q=${encodeURIComponent(q)}`);
+      }}
+    >
+      <label htmlFor="global-search" className="sr-only">
+        {copy.app.nav.search}
+      </label>
+      <div className="relative">
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+          aria-hidden="true"
+        />
+        <input
+          id="global-search"
+          type="search"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={copy.app.searchPlaceholder}
+          className="h-8 w-full rounded-control border border-control bg-surface pl-9 pr-3 text-body placeholder:text-faint"
+        />
+      </div>
+    </form>
+  );
+}
 
 export function AppLayout(): React.ReactElement {
   const { user, isAuthenticated, isAdmin, logout } = useMe();
-  const navigate = useNavigate();
+  const location = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const streamState = useNotificationStream();
+  const unread = useUnreadCount(isAuthenticated, streamState === 'polling' ? 30_000 : false);
+  const unreadCount = unread.data?.count ?? 0;
 
-  const navItems = [
-    { label: copy.app.nav.home, path: '/', icon: Home, exact: true },
-    { label: copy.app.nav.search, path: '/search', icon: Search },
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  useEffect(() => {
+    closeMenu();
+  }, [location.pathname, closeMenu]);
+
+  const primary: NavItem[] = [
+    { label: copy.app.nav.home, to: '/', icon: Home, end: true },
+    { label: copy.app.nav.search, to: '/search', icon: Search },
     ...(isAuthenticated
       ? [
-          { label: copy.app.nav.notifications, path: '/notifications', icon: Bell },
-          { label: copy.app.nav.messages, path: '/messages', icon: Mail },
-          { label: copy.app.nav.score, path: '/score', icon: Award },
-          { label: copy.app.nav.appeals, path: '/appeals', icon: FileText },
-          { label: copy.app.nav.profile, path: `/u/${user?.username}`, icon: User },
-          { label: copy.app.nav.settings, path: '/settings', icon: Settings },
+          {
+            label: copy.app.nav.notifications,
+            to: '/notifications',
+            icon: Bell,
+            count: unreadCount,
+          },
+          { label: copy.app.nav.messages, to: '/messages', icon: Mail },
+          { label: copy.app.nav.score, to: '/score', icon: Scale },
+          { label: copy.app.nav.appeals, to: '/appeals', icon: FileText },
         ]
       : []),
-    ...(isAdmin
-      ? [{ label: copy.app.nav.admin, path: '/admin', icon: Shield }]
-      : []),
   ];
+  const secondary: NavItem[] =
+    isAuthenticated && user
+      ? [
+          { label: copy.app.nav.profile, to: `/u/${user.username}`, icon: User },
+          { label: copy.app.nav.settings, to: '/settings', icon: Settings },
+          ...(isAdmin ? [{ label: copy.app.nav.admin, to: '/admin', icon: ShieldCheck }] : []),
+        ]
+      : [];
+
+  const isAdminArea = location.pathname.startsWith('/admin');
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col md:flex-row justify-center">
-      {/* Mobile Top Header */}
-      <header className="md:hidden sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex items-center justify-between">
-        <NavLink to="/" className="font-bold text-lg text-indigo-600 dark:text-indigo-400">
-          {copy.app.name}
-        </NavLink>
-        {isAuthenticated && user ? (
-          <NavLink to={`/u/${user.username}`}>
-            <Avatar src={user.avatarUrl} name={user.displayName} size="sm" />
-          </NavLink>
-        ) : (
-          <NavLink
-            to="/login"
-            className="text-xs font-semibold text-indigo-600 dark:text-indigo-400"
-          >
-            {copy.app.nav.login}
-          </NavLink>
-        )}
-      </header>
-
-      {/* Desktop Sidebar Navigation */}
-      <aside className="hidden md:flex flex-col w-64 shrink-0 border-r border-slate-200 dark:border-slate-800 p-4 sticky top-0 h-screen justify-between">
-        <div className="space-y-6">
-          <div className="px-3 py-2">
-            <NavLink to="/" className="block">
-              <span className="font-extrabold text-xl tracking-tight text-indigo-600 dark:text-indigo-400">
-                {copy.app.name}
-              </span>
-              <span className="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                {copy.app.tagline}
-              </span>
-            </NavLink>
-          </div>
-
-          <nav className="space-y-1" aria-label="Main Navigation">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  end={item.exact}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
-                      isActive
-                        ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400 font-semibold'
-                        : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800/60'
-                    }`
-                  }
-                >
-                  <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
-                  <span>{item.label}</span>
-                </NavLink>
-              );
-            })}
-          </nav>
+    <div className="min-h-screen bg-frame">
+      {/* Sidebar (desktop) */}
+      <aside className="fixed inset-y-0 left-0 hidden w-sidebar flex-col px-3 pb-3 pt-3 lg:flex">
+        <div className="px-2.5 pb-4 pt-1">
+          <Wordmark />
         </div>
-
-        {/* User Card & Auth Actions */}
-        <div className="border-t border-slate-200 dark:border-slate-800 pt-4 space-y-3">
+        <nav className="flex-1 overflow-y-auto" aria-label="Primary">
+          <NavList items={primary} />
+          {secondary.length ? (
+            <div className="mt-5">
+              <p className="mb-1 px-2.5 text-small text-muted">{copy.app.nav.profile}</p>
+              <NavList items={secondary} />
+            </div>
+          ) : null}
+        </nav>
+        <div className="mt-3 space-y-3 px-1">
           {isAuthenticated && user ? (
-            <div className="space-y-3">
-              <NavLink
-                to={`/u/${user.username}`}
-                className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                <Avatar src={user.avatarUrl} name={user.displayName} size="md" />
-                <div className="overflow-hidden flex-1">
-                  <div className="font-semibold text-sm truncate text-slate-900 dark:text-slate-100">
-                    {user.displayName}
-                  </div>
-                  <div className="text-xs text-slate-500 truncate">@{user.username}</div>
-                  <div className="mt-1">
-                    <TierBadge tier={user.score.tier} />
-                  </div>
-                </div>
-              </NavLink>
-
+            <div className="flex items-center gap-2.5">
+              <Avatar
+                avatarUrl={user.avatarUrl}
+                displayName={user.displayName}
+                username={user.username}
+                size="sm"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-body font-medium text-ink">{user.displayName}</p>
+                <p className="truncate text-small text-muted">@{user.username}</p>
+              </div>
               <button
                 type="button"
                 onClick={() => void logout()}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors min-h-[44px]"
+                className="grid h-8 w-8 place-items-center rounded-control text-muted hover:bg-active hover:text-ink"
+                aria-label={copy.app.nav.logout}
+                title={copy.app.nav.logout}
               >
                 <LogOut className="h-4 w-4" aria-hidden="true" />
-                <span>{copy.app.nav.logout}</span>
               </button>
             </div>
           ) : (
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => navigate('/login')}
-                className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 min-h-[44px]"
-              >
-                <LogIn className="h-4 w-4" aria-hidden="true" />
-                <span>{copy.app.nav.login}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('/register')}
-                className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 min-h-[44px]"
-              >
-                <span>{copy.app.nav.register}</span>
-              </button>
+            <div className="flex flex-col gap-2">
+              <Button variant="primary" onClick={() => (window.location.href = '/login')}>
+                {copy.app.nav.login}
+              </Button>
+              <Button variant="secondary" onClick={() => (window.location.href = '/register')}>
+                {copy.app.nav.register}
+              </Button>
             </div>
           )}
-
-          {/* Legal Links */}
-          <div className="flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-900">
-            <NavLink to="/legal/terms" className="hover:underline">Terms</NavLink>
-            <span>•</span>
-            <NavLink to="/legal/privacy" className="hover:underline">Privacy</NavLink>
-            <span>•</span>
-            <NavLink to="/legal/guidelines" className="hover:underline">Guidelines</NavLink>
-          </div>
+          <nav
+            aria-label={copy.app.nav.legal}
+            className="flex flex-wrap gap-x-3 px-1 text-small text-muted"
+          >
+            <NavLink to="/legal/terms" className="hover:text-ink">
+              {copy.app.footer.terms}
+            </NavLink>
+            <NavLink to="/legal/privacy" className="hover:text-ink">
+              {copy.app.footer.privacy}
+            </NavLink>
+            <NavLink to="/legal/guidelines" className="hover:text-ink">
+              {copy.app.footer.guidelines}
+            </NavLink>
+          </nav>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-2xl min-h-screen border-r border-slate-200 dark:border-slate-800 pb-20 md:pb-8">
-        <Outlet />
-      </main>
-
-      {/* Mobile Bottom Navigation (< 768px) */}
-      <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-t border-slate-200 dark:border-slate-800 flex justify-around items-center px-2 py-1"
-        aria-label="Mobile Navigation"
-      >
-        <NavLink
-          to="/"
-          end
-          className={({ isActive }) =>
-            `p-2.5 rounded-lg flex flex-col items-center justify-center min-h-[44px] min-w-[44px] ${
-              isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'
-            }`
-          }
-          aria-label={copy.app.nav.home}
+      {/* Top bar */}
+      <header className="fixed inset-x-0 top-0 z-40 flex h-topbar items-center gap-3 bg-frame px-4 lg:left-sidebar lg:px-6">
+        <button
+          type="button"
+          className="grid h-8 w-8 place-items-center rounded-control text-ink hover:bg-active lg:hidden"
+          aria-label={menuOpen ? copy.app.nav.closeMenu : copy.app.nav.menu}
+          aria-expanded={menuOpen}
+          aria-controls="mobile-menu"
+          onClick={() => setMenuOpen((v) => !v)}
         >
-          <Home className="h-5 w-5" aria-hidden="true" />
-        </NavLink>
-        <NavLink
-          to="/search"
-          className={({ isActive }) =>
-            `p-2.5 rounded-lg flex flex-col items-center justify-center min-h-[44px] min-w-[44px] ${
-              isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'
-            }`
-          }
-          aria-label={copy.app.nav.search}
-        >
-          <Search className="h-5 w-5" aria-hidden="true" />
-        </NavLink>
-        {isAuthenticated && (
-          <>
+          {menuOpen ? <MenuIconClosed /> : <MenuIcon className="h-5 w-5" aria-hidden="true" />}
+        </button>
+        <div className="lg:hidden">
+          <Wordmark />
+        </div>
+        <div className="hidden flex-1 justify-center lg:flex">
+          <SearchBox />
+        </div>
+        <div className="ml-auto flex items-center gap-1">
+          {isAuthenticated ? (
             <NavLink
               to="/notifications"
-              className={({ isActive }) =>
-                `p-2.5 rounded-lg flex flex-col items-center justify-center min-h-[44px] min-w-[44px] ${
-                  isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'
-                }`
-              }
+              className="relative grid h-8 w-8 place-items-center rounded-control text-muted hover:bg-active hover:text-ink lg:hidden"
               aria-label={copy.app.nav.notifications}
             >
-              <Bell className="h-5 w-5" aria-hidden="true" />
+              <Bell className="h-4 w-4" aria-hidden="true" />
+              {unreadCount > 0 ? (
+                <span
+                  className="absolute right-1 top-1 h-2 w-2 rounded-full bg-negative"
+                  aria-hidden="true"
+                />
+              ) : null}
             </NavLink>
+          ) : null}
+          {isAuthenticated && user ? (
             <NavLink
-              to="/score"
-              className={({ isActive }) =>
-                `p-2.5 rounded-lg flex flex-col items-center justify-center min-h-[44px] min-w-[44px] ${
-                  isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'
-                }`
-              }
-              aria-label={copy.app.nav.score}
+              to={`/u/${user.username}`}
+              className="rounded-full"
+              aria-label={copy.app.nav.profile}
             >
-              <Award className="h-5 w-5" aria-hidden="true" />
+              <Avatar
+                avatarUrl={user.avatarUrl}
+                displayName={user.displayName}
+                username={user.username}
+                size="sm"
+              />
             </NavLink>
+          ) : (
             <NavLink
-              to="/settings"
-              className={({ isActive }) =>
-                `p-2.5 rounded-lg flex flex-col items-center justify-center min-h-[44px] min-w-[44px] ${
-                  isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'
-                }`
-              }
-              aria-label={copy.app.nav.settings}
+              to="/login"
+              className="text-body font-medium text-ink hover:underline lg:hidden"
             >
-              <Settings className="h-5 w-5" aria-hidden="true" />
+              {copy.app.nav.login}
             </NavLink>
-          </>
-        )}
-      </nav>
+          )}
+        </div>
+      </header>
+
+      {/* Mobile menu sheet */}
+      {menuOpen ? (
+        <div
+          id="mobile-menu"
+          className="fixed inset-x-0 bottom-0 top-topbar z-30 overflow-y-auto bg-frame px-4 pb-6 pt-2 lg:hidden"
+        >
+          <div className="mb-3">
+            <SearchBox compact />
+          </div>
+          <NavList items={primary} onNavigate={closeMenu} />
+          {secondary.length ? (
+            <div className="mt-5">
+              <NavList items={secondary} onNavigate={closeMenu} />
+            </div>
+          ) : null}
+          <div className="mt-6 flex flex-col gap-2">
+            {isAuthenticated ? (
+              <Button variant="secondary" icon={<LogOut />} onClick={() => void logout()}>
+                {copy.app.nav.logout}
+              </Button>
+            ) : (
+              <>
+                <Button variant="primary" onClick={() => (window.location.href = '/login')}>
+                  {copy.app.nav.login}
+                </Button>
+                <Button variant="secondary" onClick={() => (window.location.href = '/register')}>
+                  {copy.app.nav.register}
+                </Button>
+              </>
+            )}
+          </div>
+          <nav
+            aria-label={copy.app.nav.legal}
+            className="mt-6 flex gap-4 px-1 text-small text-muted"
+          >
+            <NavLink to="/legal/terms">{copy.app.footer.terms}</NavLink>
+            <NavLink to="/legal/privacy">{copy.app.footer.privacy}</NavLink>
+            <NavLink to="/legal/guidelines">{copy.app.footer.guidelines}</NavLink>
+          </nav>
+        </div>
+      ) : null}
+
+      {/* The sheet */}
+      <main id="main" className="min-h-screen pt-topbar lg:pl-sidebar">
+        <div className="min-h-[calc(100vh-48px)] bg-surface lg:mb-2 lg:mr-2 lg:min-h-[calc(100vh-56px)] lg:rounded-sheet lg:border lg:border-border">
+          <div
+            className={`mx-auto w-full px-5 py-5 sm:px-6 ${isAdminArea ? 'max-w-[1400px]' : 'max-w-sheet'}`}
+          >
+            {isAuthenticated ? <AccountStatusBanner /> : null}
+            <Outlet />
+          </div>
+        </div>
+      </main>
     </div>
   );
+}
+
+function MenuIconClosed(): React.ReactElement {
+  return <X className="h-5 w-5" aria-hidden="true" />;
 }

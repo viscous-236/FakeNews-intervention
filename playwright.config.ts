@@ -5,6 +5,7 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './e2e',
+  globalSetup: './e2e/global-setup.ts',
   timeout: 60_000,
   expect: {
     timeout: 10_000,
@@ -15,6 +16,9 @@ export default defineConfig({
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: process.env.BASE_URL || 'http://localhost:5173',
+    // Signed in as the E2E administrator (see e2e/global-setup.ts); specs that
+    // need an anonymous browser opt out with test.use({ storageState: ... }).
+    storageState: 'e2e/.auth/admin.json',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

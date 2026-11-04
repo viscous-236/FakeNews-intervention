@@ -69,9 +69,7 @@ export async function verifyScores(client?: PoolClient | Pool): Promise<VerifySc
   const issues: ScoreIssue[] = [];
 
   // 1. Fetch all users
-  const usersRes = await db.query<UserDbRow>(
-    `SELECT id, sigma, q FROM users ORDER BY id ASC`,
-  );
+  const usersRes = await db.query<UserDbRow>(`SELECT id, sigma, q FROM users ORDER BY id ASC`);
 
   // 2. Fetch all ledger rows with wave numbers
   const ledgerRes = await db.query<LedgerDbRow>(
@@ -119,11 +117,7 @@ export async function verifyScores(client?: PoolClient | Pool): Promise<VerifySc
       qAfter: r.q_after,
     }));
 
-    const pureIssues = verifyUserHistory(
-      new Decimal(user.sigma),
-      pureRows,
-      new Decimal(user.q),
-    );
+    const pureIssues = verifyUserHistory(new Decimal(user.sigma), pureRows, new Decimal(user.q));
 
     for (const pi of pureIssues) {
       const matchRow = userRows.find((r) => r.wave_number === pi.waveNumber);

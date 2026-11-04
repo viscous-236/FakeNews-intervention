@@ -1,148 +1,107 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { Avatar } from '../../components/ui/Avatar';
-import { TierBadge, PostLabelBadge } from '../../components/ui/Badge';
-import { Button } from '../../components/ui/Button';
+import { flatten, useAdminQueue } from '../../api/hooks';
 import { copy } from '../../copy';
-import { ReviewQueueItem, PaginatedResponse } from '../../types';
-import { api } from '../../api/client';
-import { Inbox, ArrowRight, Loader2 } from 'lucide-react';
+import { errorMessage } from '../../api/client';
+import { formatRelative } from '../../lib/format';
+import { Avatar } from '../../components/ui/Avatar';
+import { PostLabelBadge, TierBadge } from '../../components/ui/Badge';
+import { Button } from '../../components/ui/Button';
+import { Pill } from '../../components/ui/Pill';
+import {
+  EmptyState,
+  ErrorState,
+  LoadMore,
+  LoadingRows,
+  PageHeader,
+} from '../../components/ui/Page';
 
-export const AdminQueuePage: React.FC = () => {
-  const [items, setItems] = useState<ReviewQueueItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+const reasonTone = {
+  reported: 'negative',
+  likely_fake: 'warning',
+  uncertain: 'neutral',
+  detector_failed: 'neutral',
+  held: 'accent',
+} as const;
 
-  useEffect(() => {
-    let mounted = true;
-    setIsLoading(true);
-
-    api
-      .get<PaginatedResponse<ReviewQueueItem>>('/api/v1/admin/queue')
-      .then((res) => {
-        if (!mounted) return;
-        setItems(res.items);
-      })
-      .catch((err: unknown) => {
-        if (!mounted) return;
-        setError(err instanceof Error ? err.message : copy.error);
-      })
-      .finally(() => {
-        if (mounted) setIsLoading(false);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
+/** Review queue (TASK-093): rows on the sheet, priority first, one action per row. */
+export function AdminQueuePage(): React.ReactElement {
+  const queue = useAdminQueue();
+  const items = flatten(queue.data);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
-            <Inbox className="w-5 h-5 text-amber-500" aria-hidden="true" />
-            <span>{copy.admin.queue.title}</span>
-          </h2>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Prioritized by report velocity, automated model confidence, and publisher tier.
-          </p>
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="py-16 text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary-600" aria-hidden="true" />
-          <p className="mt-3 text-sm text-neutral-500">{copy.loading}</p>
-        </div>
-      ) : error ? (
-        <div
-          role="alert"
-          className="rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 p-6 text-center text-sm text-red-700 dark:text-red-300"
-        >
-          {error}
-        </div>
+    <div>
+      <PageHeader title={copy.admin.queue.title} subtitle={copy.admin.queue.subtitle} />
+      {queue.isLoading ? (
+        <LoadingRows rows={4} />
+      ) : queue.isError ? (
+        <ErrorState
+          message={errorMessage(queue.error, copy.common.error)}
+          onRetry={() => void queue.refetch()}
+        />
       ) : items.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 p-12 text-center text-xs text-neutral-500 bg-white dark:bg-neutral-800">
-          {copy.admin.queue.empty}
-        </div>
+        <EmptyState>{copy.admin.queue.empty}</EmptyState>
       ) : (
-        <div className="space-y-3">
-          {items.map((item) => (
-            <div
-              key={item.postId}
-              className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-4 shadow-sm space-y-3 hover:border-neutral-300 dark:hover:border-neutral-600 transition-colors"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Avatar
-                    username={item.post.author.username}
-                    displayName={item.post.author.displayName}
-                    avatarUrl={item.post.author.avatarUrl}
-                    size="sm"
-                  />
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
-                        {item.post.author.displayName}
-                      </span>
-                      <span className="text-xs text-neutral-500">
-                        @{item.post.author.username}
-                      </span>
-                      <TierBadge tier={item.post.author.tier} />
-                    </div>
+        <>
+          <ul className="divide-y divide-rule">
+            {items.map((item) => (
+              <li key={item.post.id} className="flex gap-4 py-4">
+                <div className="w-12 shrink-0 text-right">
+                  <span className="num block font-mono text-kpi text-ink">{item.priority}</span>
+                  <span className="text-small text-muted">{copy.admin.queue.priority}</span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <Avatar
+                      avatarUrl={item.post.author.avatarUrl}
+                      displayName={item.post.author.displayName}
+                      username={item.post.author.username}
+                      size="xs"
+                    />
+                    <span className="text-body font-medium text-ink">
+                      {item.post.author.displayName}
+                    </span>
+                    <span className="text-small text-muted">@{item.post.author.username}</span>
+                    <TierBadge tier={item.post.author.tier} />
+                    <time dateTime={item.post.createdAt} className="text-small text-muted">
+                      {formatRelative(item.post.createdAt)}
+                    </time>
+                  </div>
+                  <p className="mt-1 line-clamp-3 text-body text-ink">{item.post.body}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    {item.reasons.map((r) => (
+                      <Pill key={r} tone={reasonTone[r as keyof typeof reasonTone] ?? 'neutral'}>
+                        {copy.admin.queue.reasons[r as keyof typeof copy.admin.queue.reasons] ?? r}
+                      </Pill>
+                    ))}
+                    <PostLabelBadge label={item.post.label} underAppeal={item.post.underAppeal} />
+                    <span className="num text-small text-muted">
+                      {copy.admin.queue.openReports(item.openReports)} ·{' '}
+                      {copy.admin.queue.shares(item.reshares)}
+                      {item.post.adminView?.detection.pFake
+                        ? ` · p_fake ${item.post.adminView.detection.pFake}`
+                        : ''}
+                    </span>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-                    {copy.admin.queue.priorityBadge(item.priority)}
-                  </span>
-                  {item.reportCount > 0 && (
-                    <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300">
-                      {copy.admin.queue.reportsCount(item.reportCount)}
-                    </span>
-                  )}
-                  {item.post.label !== 'none' && (
-                    <PostLabelBadge label={item.post.label} />
-                  )}
+                <div className="shrink-0 self-center">
+                  <Link to={`/admin/posts/${item.post.id}`}>
+                    <Button variant="secondary" size="sm">
+                      {copy.admin.queue.review}
+                    </Button>
+                  </Link>
                 </div>
-              </div>
-
-              {/* Body snippet */}
-              <p className="text-xs text-neutral-700 dark:text-neutral-300 line-clamp-3 bg-neutral-50 dark:bg-neutral-850 p-2.5 rounded-lg border border-neutral-100 dark:border-neutral-750">
-                {item.post.body}
-              </p>
-
-              {/* Detection info & link */}
-              <div className="flex items-center justify-between pt-1 border-t border-neutral-100 dark:border-neutral-700">
-                <div className="text-[11px] text-neutral-500 font-mono flex items-center gap-3">
-                  {item.detectionBand && (
-                    <span>
-                      Band: <strong>{item.detectionBand}</strong>
-                    </span>
-                  )}
-                  {item.pFake && (
-                    <span>
-                      p_fake: <strong>{Number(item.pFake).toFixed(4)}</strong>
-                    </span>
-                  )}
-                </div>
-
-                <Link to={`/admin/posts/${item.postId}`}>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    icon={<ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />}
-                  >
-                    {copy.admin.queue.reviewBtn}
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          ))}
-        </div>
+              </li>
+            ))}
+          </ul>
+          <LoadMore
+            hasMore={Boolean(queue.hasNextPage)}
+            isLoading={queue.isFetchingNextPage}
+            onLoad={() => void queue.fetchNextPage()}
+            total={items.length}
+          />
+        </>
       )}
     </div>
   );
-};
+}

@@ -38,7 +38,7 @@ async function assertDetectionBelongsToPost(
   if (!detection || detection.post_id !== postId || detection.post_revision !== postRevision) {
     throw new AppError(
       400,
-      'INVALID_DETECTION_RESULT',
+      'VALIDATION_ERROR',
       'Detection result does not match this post revision',
     );
   }

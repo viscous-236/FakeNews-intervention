@@ -19,10 +19,7 @@ export const createPostSchema = z
       .url('sourceUrl must be a valid URL')
       .max(2048, 'sourceUrl must not exceed 2048 characters')
       .optional(),
-    mediaIds: z
-      .array(z.string().uuid())
-      .max(4, 'A maximum of 4 images can be attached')
-      .optional(),
+    mediaIds: z.array(z.string().uuid()).max(4, 'A maximum of 4 images can be attached').optional(),
   })
   .strict();
 

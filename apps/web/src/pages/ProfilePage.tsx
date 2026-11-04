@@ -1,432 +1,282 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Ban, Mail, UserMinus, UserPlus } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import {
+  flatten,
+  useBlock,
+  useConnections,
+  useFollow,
+  useProfile,
+  useUserPosts,
+} from '../api/hooks';
+import { copy } from '../copy';
+import { errorMessage } from '../api/client';
+import { formatMonthYear } from '../lib/format';
+import type { UserSummary } from '../types';
+import { PostCard } from '../components/posts/PostCard';
+import { PostBody } from '../components/posts/PostBody';
 import { Avatar } from '../components/ui/Avatar';
 import { TierBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
-import { PostCard } from '../components/posts/PostCard';
-import { copy } from '../copy';
-import { UserProfile, Post, UserSummary, PaginatedResponse } from '../types';
-import { api } from '../api/client';
-import {
-  Calendar,
-  UserCheck,
-  UserPlus,
-  Ban,
-  Mail,
-  Loader2,
-  FileText,
-  Users,
-} from 'lucide-react';
+import { ConfirmDialog } from '../components/ui/Modal';
+import { Notice, EmptyState, ErrorState, LoadMore, LoadingRows } from '../components/ui/Page';
+import { LinkTabs } from '../components/ui/Tabs';
 
-export const ProfilePage: React.FC = () => {
-  const { username } = useParams<{ username: string }>();
-  const { me } = useAuth();
+type ProfileTab = 'posts' | 'followers' | 'following';
+
+export function ProfilePage(): React.ReactElement {
+  const { username = '' } = useParams<{ username: string }>();
+  const location = useLocation();
   const navigate = useNavigate();
+  const { me } = useAuth();
+  const profile = useProfile(username);
+  const follow = useFollow();
+  const block = useBlock();
+  const [confirmBlock, setConfirmBlock] = useState(false);
 
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [activeTab, setActiveTab] = useState<'posts' | 'followers' | 'following'>('posts');
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [followers, setFollowers] = useState<UserSummary[]>([]);
-  const [following, setFollowing] = useState<UserSummary[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isFollowingAction, setIsFollowingAction] = useState(false);
-  const [isBlockingAction, setIsBlockingAction] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const tab: ProfileTab = location.pathname.endsWith('/followers')
+    ? 'followers'
+    : location.pathname.endsWith('/following')
+      ? 'following'
+      : 'posts';
+  const isSelf = me?.username.toLowerCase() === username.toLowerCase();
 
-  const isSelf = me?.username.toLowerCase() === username?.toLowerCase();
-
-  useEffect(() => {
-    let mounted = true;
-    if (!username) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    api
-      .get<{ user: UserProfile }>(`/api/v1/users/${username}`)
-      .then((res) => {
-        if (!mounted) return;
-        setProfile(res.user);
-        // Load user's posts
-        return api.get<PaginatedResponse<Post>>(`/api/v1/users/${username}/posts`);
-      })
-      .then((postsRes) => {
-        if (!mounted || !postsRes) return;
-        setPosts(postsRes.items);
-      })
-      .catch((err: unknown) => {
-        if (!mounted) return;
-        setError(err instanceof Error ? err.message : copy.error);
-      })
-      .finally(() => {
-        if (mounted) setIsLoading(false);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, [username]);
-
-  // Load followers / following when tab changes
-  useEffect(() => {
-    let mounted = true;
-    if (!username || !profile) return;
-
-    if (activeTab === 'followers') {
-      api
-        .get<PaginatedResponse<UserSummary>>(`/api/v1/users/${username}/followers`)
-        .then((res) => {
-          if (mounted) setFollowers(res.items);
-        })
-        .catch(() => {});
-    } else if (activeTab === 'following') {
-      api
-        .get<PaginatedResponse<UserSummary>>(`/api/v1/users/${username}/following`)
-        .then((res) => {
-          if (mounted) setFollowing(res.items);
-        })
-        .catch(() => {});
-    }
-
-    return () => {
-      mounted = false;
-    };
-  }, [activeTab, username, profile]);
-
-  const handleFollowToggle = async () => {
-    if (!profile || isFollowingAction || !me) return;
-    try {
-      setIsFollowingAction(true);
-      if (profile.viewer.following) {
-        await api.delete(`/api/v1/users/${profile.username}/follow`);
-        setProfile({
-          ...profile,
-          viewer: { ...profile.viewer, following: false },
-          counts: { ...profile.counts, followers: Math.max(0, profile.counts.followers - 1) },
-        });
-      } else {
-        await api.post(`/api/v1/users/${profile.username}/follow`);
-        setProfile({
-          ...profile,
-          viewer: { ...profile.viewer, following: true },
-          counts: { ...profile.counts, followers: profile.counts.followers + 1 },
-        });
-      }
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : copy.error);
-    } finally {
-      setIsFollowingAction(false);
-    }
-  };
-
-  const handleBlockToggle = async () => {
-    if (!profile || isBlockingAction || !me) return;
-    const confirmMsg = profile.viewer.blocked
-      ? `Unblock @${profile.username}?`
-      : `Block @${profile.username}? They will not be able to follow, message, or interact with you.`;
-    if (!window.confirm(confirmMsg)) return;
-
-    try {
-      setIsBlockingAction(true);
-      if (profile.viewer.blocked) {
-        await api.delete(`/api/v1/users/${profile.username}/block`);
-        setProfile({
-          ...profile,
-          viewer: { ...profile.viewer, blocked: false },
-        });
-      } else {
-        await api.post(`/api/v1/users/${profile.username}/block`);
-        setProfile({
-          ...profile,
-          viewer: { ...profile.viewer, blocked: true, following: false },
-        });
-      }
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : copy.error);
-    } finally {
-      setIsBlockingAction(false);
-    }
-  };
-
-  if (isLoading) {
+  if (profile.isLoading) return <LoadingRows rows={2} />;
+  if (profile.isError || !profile.data) {
     return (
-      <div className="py-20 text-center">
-        <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary-600" aria-hidden="true" />
-        <p className="mt-3 text-sm text-neutral-500">{copy.loading}</p>
-      </div>
+      <ErrorState
+        message={errorMessage(profile.error, copy.profile.notFound)}
+        onRetry={() => void profile.refetch()}
+      />
     );
   }
-
-  if (error || !profile) {
-    return (
-      <div
-        role="alert"
-        className="rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 p-6 text-center text-sm text-red-700 dark:text-red-300"
-      >
-        {error || 'User not found.'}
-      </div>
-    );
-  }
+  const p = profile.data;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      {/* Profile Card */}
-      <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-          <div className="flex items-center sm:items-start gap-4">
-            <Avatar
-              username={profile.username}
-              displayName={profile.displayName}
-              avatarUrl={profile.avatarUrl}
-              size="lg"
-            />
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
-                  {profile.displayName}
-                </h1>
-                <TierBadge tier={profile.tier} />
-              </div>
-              <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                @{profile.username}
-              </p>
-            </div>
+    <div className="mx-auto max-w-3xl">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        <Avatar
+          avatarUrl={p.avatarUrl}
+          displayName={p.displayName}
+          username={p.username}
+          size="xl"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-title text-ink">{p.displayName}</h1>
+            <TierBadge tier={p.tier} />
           </div>
-
-          {/* Action buttons */}
-          <div className="flex items-center gap-2">
-            {isSelf ? (
-              <Link to="/settings">
-                <Button variant="outline" size="sm">
-                  {copy.app.nav.settings}
-                </Button>
-              </Link>
-            ) : me ? (
-              <>
+          <p className="text-body text-muted">@{p.username}</p>
+          {p.bio ? <PostBody text={p.bio} className="mt-2 text-body" /> : null}
+          <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-body text-muted">
+            <div>
+              <dt className="sr-only">{copy.profile.joined('')}</dt>
+              <dd>{copy.profile.joined(formatMonthYear(p.createdAt))}</dd>
+            </div>
+            {p.q !== undefined ? (
+              <div className="flex gap-1">
+                <dt>{copy.profile.scoreLabel}</dt>
+                <dd className="num font-medium text-ink">{p.q}</dd>
+              </div>
+            ) : null}
+          </dl>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {isSelf ? (
+            <Link to="/settings">
+              <Button variant="secondary">{copy.profile.editProfile}</Button>
+            </Link>
+          ) : me ? (
+            <>
+              {!p.viewer.blocked ? (
                 <Button
-                  variant={profile.viewer.following ? 'outline' : 'primary'}
-                  size="sm"
-                  onClick={handleFollowToggle}
-                  isLoading={isFollowingAction}
-                  icon={
-                    profile.viewer.following ? (
-                      <UserCheck className="w-4 h-4" aria-hidden="true" />
-                    ) : (
-                      <UserPlus className="w-4 h-4" aria-hidden="true" />
-                    )
+                  variant={p.viewer.following ? 'secondary' : 'primary'}
+                  icon={p.viewer.following ? <UserMinus /> : <UserPlus />}
+                  isLoading={follow.isPending}
+                  onClick={() =>
+                    follow.mutate({ username: p.username, follow: !p.viewer.following })
                   }
                 >
-                  {profile.viewer.following ? 'Following' : 'Follow'}
+                  {p.viewer.following ? copy.profile.unfollow : copy.profile.follow}
                 </Button>
-
+              ) : null}
+              {!p.viewer.blocked ? (
                 <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => navigate(`/messages/${profile.username}`)}
-                  icon={<Mail className="w-4 h-4" aria-hidden="true" />}
-                  aria-label="Direct message"
+                  variant="secondary"
+                  icon={<Mail />}
+                  onClick={() => navigate(`/messages/${p.username}`)}
                 >
-                  Message
+                  {copy.profile.message}
                 </Button>
-
-                <Button
-                  variant={profile.viewer.blocked ? 'danger' : 'ghost'}
-                  size="sm"
-                  onClick={handleBlockToggle}
-                  isLoading={isBlockingAction}
-                  icon={<Ban className="w-4 h-4" aria-hidden="true" />}
-                  aria-label={profile.viewer.blocked ? 'Unblock user' : 'Block user'}
-                >
-                  {profile.viewer.blocked ? 'Blocked' : 'Block'}
-                </Button>
-              </>
-            ) : (
-              <Link to="/login">
-                <Button variant="primary" size="sm">
-                  Follow
-                </Button>
-              </Link>
-            )}
-          </div>
+              ) : null}
+              <Button
+                variant={p.viewer.blocked ? 'secondary' : 'ghost'}
+                icon={<Ban />}
+                onClick={() => setConfirmBlock(true)}
+              >
+                {p.viewer.blocked ? copy.profile.unblock : copy.profile.block}
+              </Button>
+            </>
+          ) : (
+            <Link to="/login">
+              <Button variant="primary" icon={<UserPlus />}>
+                {copy.profile.follow}
+              </Button>
+            </Link>
+          )}
         </div>
+      </header>
 
-        {/* Bio */}
-        {profile.bio && (
-          <p className="mt-4 text-sm text-neutral-700 dark:text-neutral-300 whitespace-pre-line leading-relaxed">
-            {profile.bio}
-          </p>
-        )}
-
-        {/* Metadata stats */}
-        <div className="mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-700 flex flex-wrap items-center gap-6 text-xs text-neutral-500">
-          <div className="flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>
-              Joined{' '}
-              {new Date(profile.createdAt).toLocaleDateString(undefined, {
-                month: 'short',
-                year: 'numeric',
-              })}
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('following')}
-            className="hover:underline focus:outline-none"
-          >
-            <strong className="font-semibold text-neutral-900 dark:text-neutral-100">
-              {profile.counts.following}
-            </strong>{' '}
-            Following
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('followers')}
-            className="hover:underline focus:outline-none"
-          >
-            <strong className="font-semibold text-neutral-900 dark:text-neutral-100">
-              {profile.counts.followers}
-            </strong>{' '}
-            Followers
-          </button>
-
-          <span>
-            <strong className="font-semibold text-neutral-900 dark:text-neutral-100">
-              {profile.counts.posts}
-            </strong>{' '}
-            Posts
-          </span>
+      {p.viewer.blocked ? (
+        <div className="mt-4">
+          <Notice tone="neutral">{copy.profile.blockedNotice}</Notice>
         </div>
+      ) : null}
+
+      <div className="mt-6">
+        <LinkTabs
+          label={copy.app.nav.profile}
+          items={[
+            { to: `/u/${p.username}`, label: copy.profile.posts, end: true, count: p.counts.posts },
+            {
+              to: `/u/${p.username}/followers`,
+              label: copy.profile.followers,
+              count: p.counts.followers,
+            },
+            {
+              to: `/u/${p.username}/following`,
+              label: copy.profile.following,
+              count: p.counts.following,
+            },
+          ]}
+        />
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 rounded-xl p-1 shadow-sm">
-        <button
-          type="button"
-          onClick={() => setActiveTab('posts')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-colors min-h-[44px] focus:outline-none ${
-            activeTab === 'posts'
-              ? 'bg-neutral-100 dark:bg-neutral-700 text-neutral-900 dark:text-neutral-100'
-              : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900'
-          }`}
-        >
-          <FileText className="w-3.5 h-3.5" aria-hidden="true" />
-          <span>Posts</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('followers')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-colors min-h-[44px] focus:outline-none ${
-            activeTab === 'followers'
-              ? 'bg-neutral-100 dark:bg-neutral-700 text-neutral-900 dark:text-neutral-100'
-              : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900'
-          }`}
-        >
-          <Users className="w-3.5 h-3.5" aria-hidden="true" />
-          <span>Followers ({profile.counts.followers})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('following')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-colors min-h-[44px] focus:outline-none ${
-            activeTab === 'following'
-              ? 'bg-neutral-100 dark:bg-neutral-700 text-neutral-900 dark:text-neutral-100'
-              : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900'
-          }`}
-        >
-          <Users className="w-3.5 h-3.5" aria-hidden="true" />
-          <span>Following ({profile.counts.following})</span>
-        </button>
-      </div>
-
-      {/* Tab Panels */}
-      {activeTab === 'posts' && (
-        <div className="space-y-4">
-          {posts.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 p-8 text-center bg-white dark:bg-neutral-800 text-xs text-neutral-500">
-              No posts published yet.
-            </div>
-          ) : (
-            posts.map((post) => (
-              <PostCard
-                key={post.id}
-                post={post}
-                onPostUpdated={(updated) =>
-                  setPosts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
-                }
-                onPostDeleted={(postId) =>
-                  setPosts((prev) => prev.filter((p) => p.id !== postId))
-                }
-              />
-            ))
-          )}
-        </div>
+      {tab === 'posts' ? (
+        <PostsTab username={p.username} />
+      ) : (
+        <PeopleTab username={p.username} dir={tab} />
       )}
 
-      {activeTab === 'followers' && (
-        <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-4 divide-y divide-neutral-100 dark:divide-neutral-700">
-          {followers.length === 0 ? (
-            <p className="py-6 text-center text-xs text-neutral-500">
-              No followers yet.
-            </p>
-          ) : (
-            followers.map((u) => (
-              <div key={u.id} className="py-3 flex items-center justify-between">
-                <Link to={`/u/${u.username}`} className="flex items-center gap-2.5">
-                  <Avatar
-                    username={u.username}
-                    displayName={u.displayName}
-                    avatarUrl={u.avatarUrl}
-                    size="sm"
-                  />
-                  <div>
-                    <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
-                      {u.displayName}
-                    </p>
-                    <p className="text-[11px] text-neutral-400">@{u.username}</p>
-                  </div>
-                </Link>
-                <TierBadge tier={u.tier} />
-              </div>
-            ))
-          )}
-        </div>
-      )}
-
-      {activeTab === 'following' && (
-        <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-4 divide-y divide-neutral-100 dark:divide-neutral-700">
-          {following.length === 0 ? (
-            <p className="py-6 text-center text-xs text-neutral-500">
-              Not following anyone yet.
-            </p>
-          ) : (
-            following.map((u) => (
-              <div key={u.id} className="py-3 flex items-center justify-between">
-                <Link to={`/u/${u.username}`} className="flex items-center gap-2.5">
-                  <Avatar
-                    username={u.username}
-                    displayName={u.displayName}
-                    avatarUrl={u.avatarUrl}
-                    size="sm"
-                  />
-                  <div>
-                    <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
-                      {u.displayName}
-                    </p>
-                    <p className="text-[11px] text-neutral-400">@{u.username}</p>
-                  </div>
-                </Link>
-                <TierBadge tier={u.tier} />
-              </div>
-            ))
-          )}
-        </div>
-      )}
+      <ConfirmDialog
+        isOpen={confirmBlock}
+        onClose={() => setConfirmBlock(false)}
+        title={
+          p.viewer.blocked
+            ? copy.profile.unblockTitle(p.username)
+            : copy.profile.blockTitle(p.username)
+        }
+        body={p.viewer.blocked ? copy.profile.unblockBody : copy.profile.blockBody}
+        confirmLabel={p.viewer.blocked ? copy.profile.unblock : copy.profile.block}
+        danger={!p.viewer.blocked}
+        isLoading={block.isPending}
+        onConfirm={() =>
+          block.mutate(
+            { username: p.username, block: !p.viewer.blocked },
+            { onSuccess: () => setConfirmBlock(false) },
+          )
+        }
+      />
     </div>
   );
-};
+}
+
+function PostsTab({ username }: { username: string }): React.ReactElement {
+  const posts = useUserPosts(username);
+  const items = flatten(posts.data);
+  if (posts.isLoading) return <LoadingRows rows={3} />;
+  if (posts.isError)
+    return (
+      <div className="pt-4">
+        <ErrorState
+          message={errorMessage(posts.error, copy.common.error)}
+          onRetry={() => void posts.refetch()}
+        />
+      </div>
+    );
+  if (items.length === 0)
+    return (
+      <div className="pt-4">
+        <EmptyState>{copy.profile.noPosts}</EmptyState>
+      </div>
+    );
+  return (
+    <>
+      <div className="divide-y divide-rule">
+        {items.map((post) => (
+          <PostCard key={post.id} post={post} />
+        ))}
+      </div>
+      <LoadMore
+        hasMore={Boolean(posts.hasNextPage)}
+        isLoading={posts.isFetchingNextPage}
+        onLoad={() => void posts.fetchNextPage()}
+        total={items.length}
+      />
+    </>
+  );
+}
+
+function PeopleTab({
+  username,
+  dir,
+}: {
+  username: string;
+  dir: 'followers' | 'following';
+}): React.ReactElement {
+  const people = useConnections(username, dir);
+  const items = flatten(people.data);
+  if (people.isLoading) return <LoadingRows rows={3} />;
+  if (people.isError)
+    return (
+      <div className="pt-4">
+        <ErrorState
+          message={errorMessage(people.error, copy.common.error)}
+          onRetry={() => void people.refetch()}
+        />
+      </div>
+    );
+  if (items.length === 0) {
+    return (
+      <div className="pt-4">
+        <EmptyState>
+          {dir === 'followers' ? copy.profile.noFollowers : copy.profile.noFollowing}
+        </EmptyState>
+      </div>
+    );
+  }
+  return (
+    <>
+      <UserList users={items} />
+      <LoadMore
+        hasMore={Boolean(people.hasNextPage)}
+        isLoading={people.isFetchingNextPage}
+        onLoad={() => void people.fetchNextPage()}
+        total={items.length}
+      />
+    </>
+  );
+}
+
+export function UserList({ users }: { users: UserSummary[] }): React.ReactElement {
+  return (
+    <ul className="divide-y divide-rule">
+      {users.map((u) => (
+        <li key={u.id}>
+          <Link
+            to={`/u/${u.username}`}
+            className="flex items-center gap-3 py-3 hover:bg-raised/60 -mx-2 px-2 rounded-control"
+          >
+            <Avatar avatarUrl={u.avatarUrl} displayName={u.displayName} username={u.username} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-body font-medium text-ink">{u.displayName}</p>
+              <p className="truncate text-small text-muted">@{u.username}</p>
+            </div>
+            <TierBadge tier={u.tier} />
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}

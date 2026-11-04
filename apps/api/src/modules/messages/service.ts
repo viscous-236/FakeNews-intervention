@@ -75,14 +75,11 @@ async function assertMessagingAllowed(
          OR (blocker_id = $2 AND blocked_id = $1)`,
     [userId, targetId],
   );
-  if (blocked.rows[0]) throw new AppError(403, 'FORBIDDEN', 'Messaging is unavailable for this relationship');
+  // Section 1.7: NOT_FOUND is "also used when blocked" so the block stays private.
+  if (blocked.rows[0]) throw new AppError(404, 'NOT_FOUND', 'User not found');
 }
 
-export async function listConversations(
-  userId: string,
-  cursor: string | undefined,
-  limit: number,
-) {
+export async function listConversations(userId: string, cursor: string | undefined, limit: number) {
   const rows = await findConversations(userId, cursor ? decodeCursor(cursor) : null, limit);
   const hasMore = rows.length > limit;
   const items = (hasMore ? rows.slice(0, limit) : rows).map(toConversationItem);
@@ -102,7 +99,13 @@ export async function listMessages(
   const target = await findMessageTarget(username);
   const rows = await withTransaction(async (tx) => {
     await assertMessagingAllowed(tx, userId, target.id);
-    return findConversationMessages(userId, target.id, cursor ? decodeCursor(cursor) : null, limit, tx);
+    return findConversationMessages(
+      userId,
+      target.id,
+      cursor ? decodeCursor(cursor) : null,
+      limit,
+      tx,
+    );
   });
   const hasMore = rows.length > limit;
   const items = (hasMore ? rows.slice(0, limit) : rows).map(toMessageItem);
@@ -113,8 +116,15 @@ export async function listMessages(
   };
 }
 
-export async function sendMessage(userId: string, username: string, body: string): Promise<MessageItem> {
+export async function sendMessage(
+  userId: string,
+  username: string,
+  body: string,
+): Promise<MessageItem> {
   const target = await findMessageTarget(username);
+  if (target.id === userId) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'You cannot message yourself');
+  }
   let notification: NotificationItem | null = null;
   let message: MessageItem;
 

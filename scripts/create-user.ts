@@ -2,7 +2,7 @@
 /**
  * scripts/create-user.ts (TASK-016)
  *
- * CLI script to create a verified user or admin.
+ * CLI script to create a user or admin.
  * Usage:
  *   npx tsx scripts/create-user.ts --username alice --email alice@example.com --password secret12345 --display-name "Alice Smith" [--sigma 0.700] [--admin]
  */
@@ -27,7 +27,9 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   });
 
   if (!values.username || !values.email || !values.password || !values['display-name']) {
-    console.error('Usage: create-user.ts --username <name> --email <email> --password <pwd> --display-name <name> [--sigma <0..1>] [--admin]');
+    console.error(
+      'Usage: create-user.ts --username <name> --email <email> --password <pwd> --display-name <name> [--sigma <0..1>] [--admin]',
+    );
     process.exitCode = 1;
     return;
   }
@@ -47,9 +49,10 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
       displayName: values['display-name'],
       role: values.admin ? 'admin' : 'user',
       sigma,
-      emailVerified: true,
     });
-    console.log(`Created user ${user.username} (${user.id}) with role=${user.role}, sigma=${user.sigma}`);
+    console.log(
+      `Created user ${user.username} (${user.id}) with role=${user.role}, sigma=${user.sigma}`,
+    );
   } catch (err) {
     console.error('Failed to create user:', err instanceof Error ? err.message : err);
     process.exitCode = 1;

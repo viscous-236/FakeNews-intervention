@@ -78,7 +78,7 @@ describe('Wave Finalization Integration (TEST-013 through TEST-020)', () => {
       email: 'test013@example.com',
       password: 'password12345',
       displayName: 'User 013',
-      sigma: 0.500,
+      sigma: 0.5,
     });
 
     const targetRs = [3, -1, 2, 0, 4];
@@ -133,28 +133,28 @@ describe('Wave Finalization Integration (TEST-013 through TEST-020)', () => {
       email: 'user08@example.com',
       password: 'password12345',
       displayName: 'User 0.8',
-      sigma: 0.800,
+      sigma: 0.8,
     });
     const userB = await createUser({
       username: 'user_04_sigma',
       email: 'user04@example.com',
       password: 'password12345',
       displayName: 'User 0.4',
-      sigma: 0.400,
+      sigma: 0.4,
     });
     const userC = await createUser({
       username: 'user_10_sigma',
       email: 'user10@example.com',
       password: 'password12345',
       displayName: 'User 1.0',
-      sigma: 1.000,
+      sigma: 1.0,
     });
     const userD = await createUser({
       username: 'user_025_sigma',
       email: 'user025@example.com',
       password: 'password12345',
       displayName: 'User 0.25',
-      sigma: 0.250,
+      sigma: 0.25,
     });
 
     // Wave 1: R = 4 for all four users
@@ -198,14 +198,14 @@ describe('Wave Finalization Integration (TEST-013 through TEST-020)', () => {
       email: 'zero_sigma@example.com',
       password: 'password12345',
       displayName: 'Zero Sigma',
-      sigma: 0.000,
+      sigma: 0.0,
     });
     const userOne = await createUser({
       username: 'one_sigma_user',
       email: 'one_sigma@example.com',
       password: 'password12345',
       displayName: 'One Sigma',
-      sigma: 1.000,
+      sigma: 1.0,
     });
 
     const openWave = await getOpenWave();
@@ -277,10 +277,9 @@ describe('Wave Finalization Integration (TEST-013 through TEST-020)', () => {
     expect(finalized).toHaveLength(9);
 
     // Verify wave state in DB
-    const waveRes = await pool.query<{ status: string }>(
-      `SELECT status FROM waves WHERE id = $1`,
-      [openWave.id],
-    );
+    const waveRes = await pool.query<{ status: string }>(`SELECT status FROM waves WHERE id = $1`, [
+      openWave.id,
+    ]);
     expect(waveRes.rows[0]!.status).toBe('finalized');
 
     // Exactly one open wave exists with number = openWave.number + 1
@@ -293,10 +292,9 @@ describe('Wave Finalization Integration (TEST-013 through TEST-020)', () => {
     // Exactly 1 ledger row per user for that wave
     const userCount = (await pool.query(`SELECT count(*) FROM users`)).rows[0]!.count;
     const ledgerCount = (
-      await pool.query(
-        `SELECT count(*) FROM user_wave_reputation WHERE wave_id = $1`,
-        [openWave.id],
-      )
+      await pool.query(`SELECT count(*) FROM user_wave_reputation WHERE wave_id = $1`, [
+        openWave.id,
+      ])
     ).rows[0]!.count;
     expect(ledgerCount).toBe(userCount);
   });
@@ -307,7 +305,7 @@ describe('Wave Finalization Integration (TEST-013 through TEST-020)', () => {
       email: 'bystander@example.com',
       password: 'password12345',
       displayName: 'Bystander',
-      sigma: 0.600,
+      sigma: 0.6,
     });
 
     const openWave = await getOpenWave();

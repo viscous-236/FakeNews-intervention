@@ -12,6 +12,8 @@ import Decimal from 'decimal.js';
 import { type PoolClient } from '../db/pool.js';
 import { withTransaction } from '../db/tx.js';
 import { AppError } from '../middleware/appError.js';
+import { emitNotification } from '../modules/notifications/bus.js';
+import { type NotificationItem } from '../modules/notifications/service.js';
 import { computeR, applyUpdate } from './pure.js';
 
 export interface WaveActor {
@@ -35,6 +37,11 @@ export interface FinalizeWaveResult {
   eventsCounted: number;
 }
 
+/** wave_finalized notifications written in the transaction, pushed over SSE after commit. */
+export interface FinalizeWaveOutcome extends FinalizeWaveResult {
+  notifications: Array<{ userId: string; item: NotificationItem }>;
+}
+
 interface UserRow {
   id: string;
   sigma: string;
@@ -48,11 +55,11 @@ interface EventAggregateRow {
   n_adj: string;
 }
 
-async function runFinalizeWave(
+export async function finalizeWaveInTransaction(
   tx: PoolClient,
   waveId?: string,
   actor: WaveActor = { kind: 'system' },
-): Promise<FinalizeWaveResult> {
+): Promise<FinalizeWaveOutcome> {
   // 1. Enable scoring bypass in session
   await tx.query("SET LOCAL app.scoring = 'on'");
 
@@ -90,6 +97,7 @@ async function runFinalizeWave(
       wave,
       usersScored: 0,
       eventsCounted: 0,
+      notifications: [],
     };
   }
 
@@ -194,7 +202,7 @@ async function runFinalizeWave(
          finalized_by_system = $3
      WHERE id = $1
      RETURNING id, number, status, formula_version, opened_at, finalized_at`,
-    [wave.id, actor.kind === 'admin' ? actor.userId ?? null : null, actor.kind === 'system'],
+    [wave.id, actor.kind === 'admin' ? (actor.userId ?? null) : null, actor.kind === 'system'],
   );
   const finalizedWave = finalizedWaveRes.rows[0];
   /* v8 ignore next 3 */
@@ -215,7 +223,7 @@ async function runFinalizeWave(
      ) VALUES ($1, $2, 'wave.finalize', 'wave', $3, $4)`,
     [
       actor.kind,
-      actor.kind === 'admin' ? actor.userId ?? null : null,
+      actor.kind === 'admin' ? (actor.userId ?? null) : null,
       wave.id,
       JSON.stringify({
         waveNumber: wave.number,
@@ -225,13 +233,31 @@ async function runFinalizeWave(
     ],
   );
 
-  // 9. Send notifications for users with r <> 0
+  // 9. Insert notifications for users with r <> 0 (same transaction, REQ-044);
+  //    they are pushed over SSE only after commit (RUL-025, step 10).
+  const notifications: Array<{ userId: string; item: NotificationItem }> = [];
   for (const notif of pendingNotifications) {
-    await tx.query(
+    const inserted = await tx.query<{ id: string; created_at: Date }>(
       `INSERT INTO notifications (user_id, type, payload)
-       VALUES ($1, 'wave_finalized', $2)`,
+       VALUES ($1, 'wave_finalized', $2)
+       RETURNING id, created_at`,
       [notif.userId, JSON.stringify(notif.payload)],
     );
+    const row = inserted.rows[0];
+    /* v8 ignore next 1 */
+    if (!row) continue;
+    notifications.push({
+      userId: notif.userId,
+      item: {
+        id: row.id,
+        type: 'wave_finalized',
+        actor: null,
+        postId: null,
+        payload: notif.payload,
+        createdAt: new Date(row.created_at).toISOString(),
+        readAt: null,
+      },
+    });
   }
 
   return {
@@ -239,7 +265,13 @@ async function runFinalizeWave(
     wave: finalizedWave,
     usersScored: usersRes.rows.length,
     eventsCounted,
+    notifications,
   };
+}
+
+/** Push wave_finalized notifications to connected clients. Call after the transaction commits. */
+export function publishFinalizeNotifications(outcome: FinalizeWaveOutcome): void {
+  for (const { userId, item } of outcome.notifications) emitNotification(userId, item);
 }
 
 /**
@@ -251,7 +283,11 @@ export async function finalizeWave(
   client?: PoolClient,
 ): Promise<FinalizeWaveResult> {
   if (client) {
-    return runFinalizeWave(client, waveId, actor);
+    // The caller owns the transaction and must publish after it commits.
+    return finalizeWaveInTransaction(client, waveId, actor);
   }
-  return withTransaction((tx) => runFinalizeWave(tx, waveId, actor));
+  const outcome = await withTransaction((tx) => finalizeWaveInTransaction(tx, waveId, actor));
+  publishFinalizeNotifications(outcome);
+  const { notifications: _notifications, ...result } = outcome;
+  return result;
 }

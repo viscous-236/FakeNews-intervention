@@ -5,21 +5,32 @@
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
-import {
-  readNotificationsSchema,
-  listNotificationsQuerySchema,
-} from '@app/shared';
+import { readNotificationsSchema, listNotificationsQuerySchema } from '@app/shared';
 import { requireAuth } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 import { notificationBus } from './bus.js';
-import {
-  listNotifications,
-  getUnreadCount,
-  markAsRead,
-  type NotificationItem,
-} from './service.js';
+import { listNotifications, getUnreadCount, markAsRead, type NotificationItem } from './service.js';
 
 export const notificationsRouter = Router();
+
+/** Open SSE responses, so graceful shutdown can end them (REQ-037). */
+const openStreams = new Set<Response>();
+
+export function closeAllSseStreams(): void {
+  for (const res of openStreams) {
+    try {
+      res.write(': server shutting down\n\n');
+      res.end();
+    } catch {
+      // already closed
+    }
+  }
+  openStreams.clear();
+}
+
+export function openSseStreamCount(): number {
+  return openStreams.size;
+}
 
 // GET /notifications (Auth, cursor paginated, optional ?unread=true)
 notificationsRouter.get(
@@ -90,6 +101,7 @@ notificationsRouter.get(
 
     // 2. Initial connection handshake comment
     res.write(': connected\n\n');
+    openStreams.add(res);
 
     const userId = req.user!.id;
     const channel = `notification:${userId}`;
@@ -103,7 +115,7 @@ notificationsRouter.get(
 
     notificationBus.on(channel, onNotification);
 
-    // 4. Comment heartbeat every 25 seconds per plan line 912
+    // 4. Comment heartbeat every 25 seconds (Section 1.7)
     const heartbeat = setInterval(() => {
       res.write(': heartbeat\n\n');
     }, 25_000);
@@ -112,6 +124,7 @@ notificationsRouter.get(
     req.on('close', () => {
       clearInterval(heartbeat);
       notificationBus.off(channel, onNotification);
+      openStreams.delete(res);
     });
   },
 );

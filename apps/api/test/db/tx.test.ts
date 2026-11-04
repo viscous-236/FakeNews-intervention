@@ -59,10 +59,9 @@ describe('withTransaction (TASK-010)', () => {
     });
 
     const pool = getTestPool();
-    const res = await pool.query<{ val: string }>(
-      `SELECT val FROM _tx_scratch WHERE val = $1`,
-      [tag],
-    );
+    const res = await pool.query<{ val: string }>(`SELECT val FROM _tx_scratch WHERE val = $1`, [
+      tag,
+    ]);
     expect(res.rows).toHaveLength(1);
     expect(res.rows[0]!.val).toBe(tag);
   });
@@ -82,10 +81,9 @@ describe('withTransaction (TASK-010)', () => {
     ).rejects.toThrow('deliberate rollback');
 
     const pool = getTestPool();
-    const res = await pool.query<{ val: string }>(
-      `SELECT val FROM _tx_scratch WHERE val = $1`,
-      [tag],
-    );
+    const res = await pool.query<{ val: string }>(`SELECT val FROM _tx_scratch WHERE val = $1`, [
+      tag,
+    ]);
     expect(res.rows).toHaveLength(0);
   });
 

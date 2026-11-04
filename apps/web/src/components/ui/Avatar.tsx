@@ -1,60 +1,60 @@
 import React from 'react';
 
+/**
+ * People are shown as themselves: a stable initial on a pale tint derived
+ * from the username, so the same person always carries the same colour.
+ */
+
+const sizes = {
+  xs: 'h-6 w-6 text-[10px]',
+  sm: 'h-8 w-8 text-small',
+  md: 'h-10 w-10 text-body',
+  lg: 'h-14 w-14 text-section',
+  xl: 'h-20 w-20 text-title',
+} as const;
+
+function hueFor(seed: string): number {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return h % 360;
+}
+
 export function Avatar({
-  src,
   avatarUrl,
-  name,
   displayName,
   username,
   size = 'md',
   className = '',
 }: {
-  src?: string | null;
-  avatarUrl?: string | null;
-  name?: string;
-  displayName?: string;
-  username?: string;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  avatarUrl: string | null | undefined;
+  displayName: string;
+  username: string;
+  size?: keyof typeof sizes;
   className?: string;
 }): React.ReactElement {
-  const finalSrc = avatarUrl !== undefined ? avatarUrl : src;
-  const finalName = displayName || name || username || '';
-
-  const sizeStyles = {
-    sm: 'h-8 w-8 text-xs',
-    md: 'h-10 w-10 text-sm',
-    lg: 'h-14 w-14 text-base font-semibold',
-    xl: 'h-20 w-20 text-xl font-bold',
-  };
-
-  const initials = finalName
-    ? finalName
-        .trim()
-        .split(/\s+/)
-        .map((n) => n[0])
-        .slice(0, 2)
-        .join('')
-        .toUpperCase()
-    : username
-    ? username.slice(0, 2).toUpperCase()
-    : '?';
-
-  if (finalSrc) {
+  const label = `${displayName} (@${username})`;
+  if (avatarUrl) {
     return (
       <img
-        src={finalSrc}
-        alt={finalName ? `${finalName}'s avatar` : 'User avatar'}
-        className={`rounded-full object-cover shrink-0 ring-1 ring-neutral-200 dark:ring-neutral-800 ${sizeStyles[size]} ${className}`}
+        src={avatarUrl}
+        alt={label}
+        width={40}
+        height={40}
+        loading="lazy"
+        className={`shrink-0 rounded-full object-cover bg-raised ${sizes[size]} ${className}`}
       />
     );
   }
-
+  const hue = hueFor(username);
+  const initial = (displayName.trim()[0] ?? username[0] ?? '?').toUpperCase();
   return (
-    <div
-      className={`inline-flex shrink-0 items-center justify-center rounded-full bg-neutral-200 font-medium text-neutral-700 ring-1 ring-neutral-300 dark:bg-neutral-800 dark:text-neutral-300 dark:ring-neutral-700 ${sizeStyles[size]} ${className}`}
-      aria-label={finalName ? `${finalName}'s avatar` : 'User avatar'}
+    <span
+      role="img"
+      aria-label={label}
+      className={`inline-flex shrink-0 select-none items-center justify-center rounded-full font-medium ${sizes[size]} ${className}`}
+      style={{ background: `hsl(${hue} 45% 92%)`, color: `hsl(${hue} 40% 28%)` }}
     >
-      {initials}
-    </div>
+      {initial}
+    </span>
   );
 }

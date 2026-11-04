@@ -113,6 +113,22 @@ def _require_api_key(x_detector_key: str | None) -> None:
         )
 
 
+@app.middleware("http")
+async def require_api_key_before_validation(request: Request, call_next):  # type: ignore[no-untyped-def]
+    """
+    REQ-030: every /v1/* request is authenticated before the body is parsed,
+    so a wrong key always yields 401 even when the payload is also invalid.
+    """
+    if request.url.path.startswith("/v1/"):
+        key = request.headers.get("X-Detector-Key")
+        if key is None or key != settings.DETECTOR_API_KEY:
+            envelope = ErrorEnvelope(
+                error=ErrorDetail(code="UNAUTHORIZED", message="Invalid or missing X-Detector-Key.")
+            )
+            return JSONResponse(status_code=401, content=envelope.model_dump())
+    return await call_next(request)
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------

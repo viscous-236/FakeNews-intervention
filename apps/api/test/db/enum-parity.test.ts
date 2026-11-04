@@ -13,12 +13,18 @@ import * as sharedEnums from '@app/shared';
 const migrationsDir = path.resolve(__dirname, '../../src/db/migrations');
 
 function getMigrationSql(): string {
-  const files = fs.readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort();
+  const files = fs
+    .readdirSync(migrationsDir)
+    .filter((f) => f.endsWith('.sql'))
+    .sort();
   return files.map((f) => fs.readFileSync(path.join(migrationsDir, f), 'utf-8')).join('\n');
 }
 
 function getTableSql(allSql: string, tableName: string): string {
-  const regex = new RegExp(`CREATE TABLE (?:IF NOT EXISTS )?${tableName}\\s*\\(([\\s\\S]*?)\\);`, 'i');
+  const regex = new RegExp(
+    `CREATE TABLE (?:IF NOT EXISTS )?${tableName}\\s*\\(([\\s\\S]*?)\\);`,
+    'i',
+  );
   const match = allSql.match(regex);
   if (!match || !match[1]) {
     throw new Error(`Table ${tableName} not found in SQL`);

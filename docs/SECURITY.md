@@ -10,7 +10,7 @@ The platform operates in an adversarial environment where coordinated actors may
 
 | Threat Category | Potential Attack Vectors | Platform Mitigations |
 |---|---|---|
-| **Misinformation Amplification** | Coordinated reshares and likes to spread disputed claims before review. | Automated BERT detection queues high-confidence fakes for review; holds pending rewards/penalties until human or consensus assessment. |
+| **Misinformation Amplification** | Coordinated reshares and likes to spread disputed claims before review. | Automated RoBERTa detection prioritizes likely-fake posts in the review queue; rewards and penalties exist only after a human administrator assessment (or the narrow `auto_real` rule for low-risk posts). |
 | **Score Tampering & Sybil Attacks** | Malicious actors manipulating reputation scores $Q$ or exploiting event deltas. | Zero client-side arithmetic. All scores are computed strictly in Postgres transactions on discrete wave boundaries ($Q_{w+1} = Q_w + \sigma \cdot R_w$). |
 | **Good-Faith Window Exploitation** | Users claiming they shared misinformation in good faith after formal labelling. | Clear timestamp demarcation: interactions prior to admin label are marked `interaction_retracted` if retracted; interactions post-label incur immutable penalties. |
 | **Cross-Site Request Forgery (CSRF)** | Attackers tricking logged-in users into liking, sharing, or posting via external sites. | Strict server-side `Origin` validation for all mutating methods (`POST`, `PATCH`, `PUT`, `DELETE`). |
@@ -56,32 +56,39 @@ The reputation score system enforces six mathematical invariants ($I_1$ to $I_6$
 
 Every HTTP response from Express includes defensive headers managed via `helmet`:
 
-- `Content-Security-Policy`:
-  `default-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; img-src 'self' data: http://localhost:9000; object-src 'none'; script-src 'self';`
+- `Content-Security-Policy` (SEC-005):
+  `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: <origin of S3_PUBLIC_BASE_URL>; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`, plus helmet's defaults (`object-src 'none'`, `script-src-attr 'none'`, `upgrade-insecure-requests`). The image origin is derived from `S3_PUBLIC_BASE_URL` at startup (`http://localhost:9000` locally, the R2 public host in production). Fonts are self-hosted so no third-party origin is needed.
 - `X-Content-Type-Options: nosniff`: Prevents MIME-confusion attacks.
 - `X-Frame-Options: SAMEORIGIN`: Defends against UI redressing / clickjacking.
 - `Referrer-Policy: no-referrer`: Prevents leaking sensitive paths or identifiers in referrer headers.
 - `Cross-Origin-Opener-Policy: same-origin` & `Cross-Origin-Resource-Policy: same-origin`.
-- **Payload Limits (REQ-010):** JSON body parsing is restricted to `100kb`. Requests exceeding this size are rejected with `413 PAYLOAD_TOO_LARGE`.
+- **Payload Limits (TASK-005, Section 1.7):** JSON body parsing is restricted to `100kb`. Requests exceeding this size are rejected with `413 PAYLOAD_TOO_LARGE`.
+- **Input normalization (REQ-026):** every string in params, query and body is NFC-normalized before validation; strings containing control characters other than newline are rejected with `400 VALIDATION_ERROR`.
 
 ---
 
 ## 5. Rate Limiting & Abuse Defense
 
-Rate limiting is applied per IP and authenticated user using `express-rate-limit`:
+Rate limiting uses `express-rate-limit` with an in-memory store (CON-003: one instance). Limits are keyed by user id when signed in, otherwise by IP (Section 1.7):
 
-| Route Category | Window | Limit | Target Action |
-|---|---|---|---|
-| `/auth/login` | 15 minutes | 5 attempts | Brute force defense |
-| `/auth/register` | 1 hour | 3 accounts | Anti-spam / Sybil damping |
-| `/auth/forgot-password` | 1 hour | 5 requests | Email flood prevention |
-| `/posts` (create) | 1 hour | 20 posts | Anti-spam |
-| `/reports` | 1 hour | 30 reports | Report flooding defense |
-| `/messages` | 1 hour | 60 messages | Direct message spam defense |
+| Scope | Window | Limit |
+|---|---|---|
+| Global, per IP (`GLOBAL_RATE_LIMIT_PER_MINUTE`) | 1 minute | 300 |
+| `POST /auth/login` (per IP) | 1 minute | 10 |
+| `POST /auth/register` (per IP) | 1 hour | 5 |
+| `POST /auth/forgot-password` (per IP) | 1 hour | 5 |
+| `POST /posts` | 1 hour | 20 |
+| Comments | 1 hour | 60 |
+| Likes | 1 hour | 300 |
+| Reshares | 1 hour | 60 |
+| Reports | 1 hour | 30 |
+| Media uploads | 1 hour | 30 |
+| Messages | 1 hour | 120 |
+| Follows and blocks | 1 hour | 100 |
+| Appeals | 24 hours | 5 |
+| Search | 1 minute | 60 |
 
-Exceeded limits return `429 RATE_LIMITED` accompanied by standard `Retry-After` HTTP headers.
-
----
+Exceeded limits return `429 RATE_LIMITED` with standard `RateLimit`/`Retry-After` headers. Independently of these limits, login applies a lockout of 5 failed attempts per identifier and IP within 15 minutes (SEC-003), returning 429 with a message that does not reveal whether the account exists.
 
 ## 6. Observability & Logging Redaction
 
@@ -89,7 +96,7 @@ Exceeded limits return `429 RATE_LIMITED` accompanied by standard `Retry-After` 
   Logs are formatted as structured JSON lines. Sensitive fields are automatically redacted before serialization:
   `password`, `token`, `cookie`, `authorization`, `email`, `req.headers.authorization`, `res.headers["set-cookie"]`.
 - **Metrics (Prometheus):**
-  Prometheus metrics are served at `GET /metrics`. Access in production is protected by `METRICS_TOKEN` (via `Authorization: Bearer <TOKEN>` or `?token=<TOKEN>`).
+  Prometheus metrics are served at `GET /metrics`, protected by `METRICS_TOKEN` via `Authorization: Bearer <TOKEN>` only (DEC-014). `METRICS_TOKEN` is mandatory in production; the process refuses to start without it.
 - **Error Tracking (Sentry):**
   Unhandled 500 errors and critical exceptions report to Sentry when `SENTRY_DSN` is configured. Sensitive request headers and tokens are excluded from breadcrumbs.
 
@@ -99,4 +106,4 @@ Exceeded limits return `429 RATE_LIMITED` accompanied by standard `Retry-After` 
 
 - Automated database backups are generated using `scripts/backup.sh` producing custom-format compressed dumps (`pg_dump -Fc`).
 - Database restorations are rehearsed using `scripts/restore.sh` (`pg_restore --clean --if-exists`).
-- All media assets in SeaweedFS/S3 are stored with content-addressed SHA-256 identifiers, preventing accidental overwrites.
+- Media objects are stored under their immutable media UUID (DEC-009); the key is never reused, so a restore cannot overwrite a newer object.

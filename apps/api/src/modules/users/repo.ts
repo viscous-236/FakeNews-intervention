@@ -18,8 +18,7 @@ export interface UserRow {
   role: 'user' | 'admin';
   status: 'active' | 'suspended' | 'deleted';
   sigma: string; // numeric as string
-  q: string;     // numeric as string
-  email_verified_at: Date | null;
+  q: string; // numeric as string
   created_at: Date;
   updated_at: Date;
   deleted_at: Date | null;
@@ -32,13 +31,9 @@ export interface InsertUserParams {
   displayName: string;
   role?: 'user' | 'admin';
   sigma: number;
-  emailVerifiedAt?: Date | null;
 }
 
-export async function insertUser(
-  params: InsertUserParams,
-  client?: PoolClient,
-): Promise<UserRow> {
+export async function insertUser(params: InsertUserParams, client?: PoolClient): Promise<UserRow> {
   const executor = client ?? getPool();
   const sql = `
     INSERT INTO users (
@@ -47,12 +42,11 @@ export async function insertUser(
       password_hash,
       display_name,
       role,
-      sigma,
-      email_verified_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      sigma
+    ) VALUES ($1, $2, $3, $4, $5, $6)
     RETURNING
       id, username, email, password_hash, display_name, bio,
-      avatar_media_id, role, status, sigma, q, email_verified_at,
+      avatar_media_id, role, status, sigma, q,
       created_at, updated_at, deleted_at
   `;
   const values = [
@@ -62,7 +56,6 @@ export async function insertUser(
     params.displayName,
     params.role ?? 'user',
     params.sigma.toFixed(3),
-    params.emailVerifiedAt ?? null,
   ];
   const res = await executor.query<UserRow>(sql, values);
   const row = res.rows[0];
@@ -84,15 +77,9 @@ export async function findUserByUsername(
   return res.rows[0] ?? null;
 }
 
-export async function findUserById(
-  id: string,
-  client?: PoolClient,
-): Promise<UserRow | null> {
+export async function findUserById(id: string, client?: PoolClient): Promise<UserRow | null> {
   const executor = client ?? getPool();
-  const res = await executor.query<UserRow>(
-    `SELECT * FROM users WHERE id = $1`,
-    [id],
-  );
+  const res = await executor.query<UserRow>(`SELECT * FROM users WHERE id = $1`, [id]);
   return res.rows[0] ?? null;
 }
 
@@ -102,10 +89,7 @@ export interface UserCounts {
   following: number;
 }
 
-export async function getUserCounts(
-  userId: string,
-  client?: PoolClient,
-): Promise<UserCounts> {
+export async function getUserCounts(userId: string, client?: PoolClient): Promise<UserCounts> {
   const executor = client ?? getPool();
   const res = await executor.query<{
     posts: string;
@@ -153,10 +137,7 @@ export async function getViewerRelationship(
   };
 }
 
-export async function checkMediaExists(
-  mediaId: string,
-  client?: PoolClient,
-): Promise<boolean> {
+export async function checkMediaExists(mediaId: string, client?: PoolClient): Promise<boolean> {
   const executor = client ?? getPool();
   const res = await executor.query<{ exists: boolean }>(
     `SELECT EXISTS(SELECT 1 FROM media WHERE id = $1) AS exists`,
@@ -207,10 +188,7 @@ export async function updateUserProfile(
   return row;
 }
 
-export async function anonymizeUser(
-  userId: string,
-  client: PoolClient,
-): Promise<void> {
+export async function anonymizeUser(userId: string, client: PoolClient): Promise<void> {
   // 1. Delete all sessions
   await client.query(`DELETE FROM sessions WHERE user_id = $1`, [userId]);
 

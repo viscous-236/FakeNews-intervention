@@ -5,12 +5,7 @@ import { listMessagesQuerySchema, messageSchema } from '@app/shared';
 import { requireActive, requireAuth } from '../../middleware/auth.js';
 import { messagesLimiter } from '../../middleware/rateLimit.js';
 import { validate } from '../../middleware/validate.js';
-import {
-  listConversations,
-  listMessages,
-  markMessagesRead,
-  sendMessage,
-} from './service.js';
+import { listConversations, listMessages, markMessagesRead, sendMessage } from './service.js';
 import { z } from 'zod';
 
 export const messagesRouter = Router();
@@ -58,7 +53,9 @@ messagesRouter.post(
   validate({ params: usernameParams, body: messageSchema }),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      res.status(201).json(await sendMessage(req.user!.id, req.params.username as string, req.body.body));
+      res
+        .status(201)
+        .json(await sendMessage(req.user!.id, req.params.username as string, req.body.body));
     } catch (error) {
       next(error);
     }

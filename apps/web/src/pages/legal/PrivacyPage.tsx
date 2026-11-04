@@ -1,63 +1,68 @@
 import React from 'react';
 import { copy } from '../../copy';
-import { ShieldCheck } from 'lucide-react';
+import { LegalShell } from './LegalShell';
 
-export const PrivacyPage: React.FC = () => {
+export function PrivacyPage(): React.ReactElement {
   return (
-    <article className="max-w-3xl mx-auto bg-white dark:bg-neutral-800 rounded-2xl border border-neutral-200 dark:border-neutral-700 p-8 shadow-sm space-y-6 text-sm text-neutral-800 dark:text-neutral-200 leading-relaxed">
-      <div className="border-b border-neutral-200 dark:border-neutral-700 pb-4">
-        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
-          <ShieldCheck className="w-6 h-6 text-primary-600 dark:text-primary-400" aria-hidden="true" />
-          <span>{copy.legal.privacyTitle}</span>
-        </h1>
-        <p className="mt-1 text-xs text-neutral-500">
-          {copy.legal.privacyDescription}
-        </p>
-      </div>
-
-      <section className="space-y-2">
-        <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
-          1. Data Minimization Principles
-        </h2>
-        <p>
-          We strictly practice data minimization. We only collect information essential for platform security and reputation accounting: your email address (used solely for authentication and system alerts), username, display name, and optional biography. Passwords are cryptographically salted and hashed using Argon2id with memory-hard parameters.
-        </p>
-      </section>
-
-      <section className="space-y-2">
-        <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
-          2. Media Sanitization and Processing
-        </h2>
-        <p>
-          Uploaded image attachments are parsed, stripped of EXIF and geolocation metadata, scaled to a maximum resolution of 4096 pixels, and re-encoded in WebP format (REQ-022). Original byte streams are never preserved on our storage volumes.
-        </p>
-      </section>
-
-      <section className="space-y-2">
-        <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
-          3. Session Cookies and Tracking
-        </h2>
-        <p>
-          We use strictly necessary first-party session cookies with <code className="font-mono text-xs bg-neutral-100 dark:bg-neutral-700 px-1 py-0.5 rounded">HttpOnly</code>, <code className="font-mono text-xs bg-neutral-100 dark:bg-neutral-700 px-1 py-0.5 rounded">SameSite=Lax</code>, and <code className="font-mono text-xs bg-neutral-100 dark:bg-neutral-700 px-1 py-0.5 rounded">Secure</code> flags. We employ no third-party behavioral advertising trackers, beacons, or invasive analytics pixels.
-        </p>
-      </section>
-
-      <section className="space-y-2">
-        <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
-          4. GDPR Data Portability & The Right to Erasure
-        </h2>
-        <p>
-          Under GDPR Articles 17 and 20, you retain full rights to:
-        </p>
-        <ul className="list-disc list-inside space-y-1 text-xs pl-2">
+    <LegalShell
+      title={copy.legal.privacy}
+      intro="We keep the minimum needed to run the platform and to keep the credibility ledger honest. This page lists what that is."
+    >
+      <section>
+        <h2>What we store</h2>
+        <ul>
+          <li>Your email, username, display name and bio.</li>
+          <li>A hash of your password (argon2id). We never store the password itself.</li>
           <li>
-            <strong>Export:</strong> Download a full structured JSON archive of your personal profile, posts, comments, likes, events, and ledger records directly from the Settings page.
+            Your posts, comments, likes, shares, follows, blocks, reports, appeals and direct
+            messages.
           </li>
           <li>
-            <strong>Erasure:</strong> Permanently delete your account. Deletion immediately removes your PII, invalidates active sessions, and anonymizes public interactions according to platform retention policy RUL-022.
+            Your reputation events and the per-wave ledger rows that record how your score changed.
+          </li>
+          <li>
+            Sessions: a hashed token, the device’s user agent and IP address, and when it was last
+            seen.
           </li>
         </ul>
       </section>
-    </article>
+
+      <section>
+        <h2>Images</h2>
+        <p>
+          Uploaded images are decoded, stripped of metadata such as location, resized to at most
+          4096 pixels on the longest side and re-encoded as WebP. The original file is never stored.
+        </p>
+      </section>
+
+      <section>
+        <h2>Automated checks</h2>
+        <p>
+          The text of each post is sent to our own detection service, which returns a probability
+          used only to prioritize human review. The service keeps no copy of your text and has no
+          access to the internet.
+        </p>
+      </section>
+
+      <section>
+        <h2>Cookies</h2>
+        <p>
+          One session cookie, marked HttpOnly, SameSite=Lax and Secure in production. No advertising
+          or analytics trackers.
+        </p>
+      </section>
+
+      <section>
+        <h2>Your data, your rights</h2>
+        <ul>
+          <li>Export: download everything above as JSON from Settings.</li>
+          <li>
+            Delete: deleting your account removes your email, name, bio, photo and password hash,
+            signs you out everywhere and renames the account to an anonymous id. Posts, events and
+            ledger rows are kept under that anonymous id so other members’ scores stay reproducible.
+          </li>
+        </ul>
+      </section>
+    </LegalShell>
   );
-};
+}

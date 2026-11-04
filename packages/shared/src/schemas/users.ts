@@ -14,22 +14,17 @@ export const updateMeSchema = z
       .min(1, 'Display name cannot be empty')
       .max(50, 'Display name must not exceed 50 characters')
       .optional(),
-    bio: z
-      .string()
-      .max(300, 'Bio must not exceed 300 characters')
-      .optional(),
-    avatarMediaId: z
-      .string()
-      .uuid('Invalid avatar media ID')
-      .nullable()
-      .optional(),
+    bio: z.string().max(300, 'Bio must not exceed 300 characters').optional(),
+    avatarMediaId: z.string().uuid('Invalid avatar media ID').nullable().optional(),
   })
   .strict();
 
 export type UpdateMeInput = z.infer<typeof updateMeSchema>;
 
-export const deleteMeSchema = z.object({
-  password: z.string().min(1, 'Password is required'),
-});
+export const deleteMeSchema = z
+  .object({
+    password: z.string().min(1, 'Password is required'),
+  })
+  .strict();
 
 export type DeleteMeInput = z.infer<typeof deleteMeSchema>;

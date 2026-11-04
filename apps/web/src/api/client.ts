@@ -1,11 +1,8 @@
 /**
  * API client (TASK-006, TASK-077).
  *
- * Full-featured fetch wrapper that:
- *   - Sends credentials (session cookie)
- *   - Injects Origin header
- *   - Serializes JSON and handles FormData
- *   - Parses the backend error envelope into an ApiError
+ * fetch wrapper that sends the session cookie, serializes JSON or FormData,
+ * and turns the server's error envelope into an ApiError.
  */
 
 export interface ErrorEnvelope {
@@ -30,6 +27,23 @@ export class ApiError extends Error {
   }
 }
 
+export function errorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) {
+    const fields = (err.details as { fields?: Record<string, string[]> } | undefined)?.fields;
+    if (err.code === 'VALIDATION_ERROR' && fields) {
+      const first = Object.values(fields).flat()[0];
+      if (first) return first;
+    }
+    return err.message || fallback;
+  }
+  if (err instanceof Error) return err.message || fallback;
+  return fallback;
+}
+
+export function isApiError(err: unknown, code?: string): err is ApiError {
+  return err instanceof ApiError && (code === undefined || err.code === code);
+}
+
 function buildQuery(query?: Record<string, unknown>): string {
   if (!query) return '';
   const searchParams = new URLSearchParams();
@@ -42,6 +56,8 @@ function buildQuery(query?: Record<string, unknown>): string {
   return str ? `?${str}` : '';
 }
 
+const REQUEST_TIMEOUT_MS = 30_000; // plan Section 1.1: 30 s client timeout
+
 async function request<T>(
   method: string,
   path: string,
@@ -50,21 +66,29 @@ async function request<T>(
 ): Promise<T> {
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
   const fullPath = `${path}${buildQuery(query)}`;
+  const headers: Record<string, string> = {};
+  if (!isFormData && body !== undefined) headers['Content-Type'] = 'application/json';
 
-  const headers: Record<string, string> = {
-    Origin: typeof window !== 'undefined' ? window.location.origin : '',
-  };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-  if (!isFormData && body !== undefined) {
-    headers['Content-Type'] = 'application/json';
+  let res: Response;
+  try {
+    res = await fetch(fullPath, {
+      method,
+      credentials: 'include',
+      headers,
+      body: isFormData ? (body as FormData) : body !== undefined ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timer);
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new ApiError(0, 'TIMEOUT', 'The request timed out.', undefined, '');
+    }
+    throw new ApiError(0, 'NETWORK', 'Could not reach the server.', undefined, '');
   }
-
-  const res = await fetch(fullPath, {
-    method,
-    credentials: 'include',
-    headers,
-    body: isFormData ? (body as FormData) : body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  clearTimeout(timer);
 
   if (!res.ok) {
     let envelope: ErrorEnvelope | null = null;
@@ -82,17 +106,19 @@ async function request<T>(
     );
   }
 
-  // 204 No Content
   if (res.status === 204) return undefined as T;
-
   return res.json() as Promise<T>;
 }
 
 export const apiClient = {
-  get: <T>(path: string, query?: Record<string, unknown>) => request<T>('GET', path, undefined, query),
-  post: <T>(path: string, body?: unknown, query?: Record<string, unknown>) => request<T>('POST', path, body, query),
-  patch: <T>(path: string, body?: unknown, query?: Record<string, unknown>) => request<T>('PATCH', path, body, query),
-  delete: <T>(path: string, body?: unknown, query?: Record<string, unknown>) => request<T>('DELETE', path, body, query),
+  get: <T>(path: string, query?: Record<string, unknown>) =>
+    request<T>('GET', path, undefined, query),
+  post: <T>(path: string, body?: unknown, query?: Record<string, unknown>) =>
+    request<T>('POST', path, body, query),
+  patch: <T>(path: string, body?: unknown, query?: Record<string, unknown>) =>
+    request<T>('PATCH', path, body, query),
+  delete: <T>(path: string, body?: unknown, query?: Record<string, unknown>) =>
+    request<T>('DELETE', path, body, query),
   upload: <T>(path: string, formData: FormData) => request<T>('POST', path, formData),
 };
 

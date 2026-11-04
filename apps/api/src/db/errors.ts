@@ -49,11 +49,7 @@ export function mapPgError(err: unknown): AppError {
           { constraint: err.constraint },
         );
       case '57014': // query_canceled / statement_timeout
-        return new AppError(
-          503,
-          'UNAVAILABLE',
-          'Database query timed out or was canceled',
-        );
+        return new AppError(503, 'UNAVAILABLE', 'Database query timed out or was canceled');
       default:
         break;
     }

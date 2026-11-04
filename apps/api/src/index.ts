@@ -1,42 +1,24 @@
 /**
  * HTTP server entry point.
  *
- * Loads config (fails fast on bad env — REQ-036), creates the Express app,
- * listens, and registers graceful shutdown (REQ-037).
+ * Importing ./config validates the environment and stops the process with a
+ * readable error on bad input (REQ-036). This module creates the Express app,
+ * listens, starts the background loops, and registers graceful shutdown
+ * (REQ-037).
  */
 
-import { config, parseConfig } from './config';
+import { config } from './config';
 import { createApp } from './app';
 import { logger } from './logger';
 import { executeGracefulShutdown } from './shutdown.js';
 import { attachWebSocketServer } from './realtime/ws';
-import { closeAllConnections } from './realtime/hub';
 import {
   startAutoReal,
   startDetectionWorker,
   startEmailOutbox,
   startMediaCleanup,
   startWaveScheduler,
-  stopAutoReal,
-  stopDetectionWorker,
-  stopEmailOutbox,
-  stopMediaCleanup,
-  stopWaveScheduler,
 } from './jobs/index';
-
-// ---------------------------------------------------------------------------
-// Fail fast on bad env — must happen before any other import
-// that reads config.  Because config is a module-level singleton, any import
-// of ./config triggers parseConfig.  If that throws, the process exits here.
-// ---------------------------------------------------------------------------
-try {
-  // parseConfig is already called when ./config is imported above.
-  // This explicit call is here so that the error is caught and formatted.
-  parseConfig(process.env as NodeJS.ProcessEnv);
-} catch (err) {
-  console.error(err instanceof Error ? err.message : String(err));
-  process.exit(1);
-}
 
 const app = createApp();
 

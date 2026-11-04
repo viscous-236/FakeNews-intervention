@@ -118,9 +118,7 @@ export async function serializePost(
 
   // RUL-019 / RUL-024 requires confirmation if false, auto_flagged, or low-tier author
   const requiresShareConfirmation =
-    label === 'auto_flagged' ||
-    label === 'fact_checked_false' ||
-    authorTier === 'low';
+    label === 'auto_flagged' || label === 'fact_checked_false' || authorTier === 'low';
 
   // ReshareOf (1 level only)
   let reshareOf: PostOutput | null = null;
@@ -228,10 +226,7 @@ export async function createPost(
   });
 }
 
-export async function getPostById(
-  postId: string,
-  viewer?: ViewerContext,
-): Promise<PostOutput> {
+export async function getPostById(postId: string, viewer?: ViewerContext): Promise<PostOutput> {
   const row = await findPostById(postId);
   if (!row) {
     throw new AppError(404, 'NOT_FOUND', 'Post not found');
@@ -267,12 +262,7 @@ export async function editPost(
 ): Promise<PostOutput> {
   return withTransaction(async (tx) => {
     // RUL-017 edit eligibility check
-    const check = await checkCanEditPost(
-      postId,
-      authorId,
-      config.EDIT_WINDOW_MINUTES,
-      tx,
-    );
+    const check = await checkCanEditPost(postId, authorId, config.EDIT_WINDOW_MINUTES, tx);
     if (!check.allowed) {
       throw new AppError(409, 'EDIT_NOT_ALLOWED', check.reason || 'Edit not allowed');
     }
@@ -302,11 +292,7 @@ export async function editPost(
   });
 }
 
-export async function deletePost(
-  postId: string,
-  userId: string,
-  isAdmin = false,
-): Promise<void> {
+export async function deletePost(postId: string, userId: string, isAdmin = false): Promise<void> {
   return withTransaction(async (tx) => {
     const post = await findPostById(postId, tx);
     if (!post || post.status === 'deleted' || post.deleted_at !== null) {
@@ -358,9 +344,7 @@ export async function getUserPosts(
   const hasMore = rows.length > options.limit;
   const itemsToReturn = hasMore ? rows.slice(0, options.limit) : rows;
 
-  const items = await Promise.all(
-    itemsToReturn.map((row) => serializePost(row, viewer)),
-  );
+  const items = await Promise.all(itemsToReturn.map((row) => serializePost(row, viewer)));
 
   let nextCursor: string | null = null;
   if (hasMore && itemsToReturn.length > 0) {

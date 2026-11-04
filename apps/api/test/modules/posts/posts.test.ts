@@ -33,7 +33,7 @@ describe('Posts Module (TASK-043)', () => {
     await closeTestPool();
   });
 
-  it('POST /posts: rejects unauthenticated or unverified caller', async () => {
+  it('POST /posts: rejects unauthenticated caller', async () => {
     // 1. Unauthenticated
     const resNoAuth = await request
       .post('/api/v1/posts')
@@ -41,34 +41,6 @@ describe('Posts Module (TASK-043)', () => {
       .set('X-Forwarded-For', '10.0.1.1')
       .send({ body: 'Hello world unauth' });
     expect(resNoAuth.status).toBe(401);
-
-    // 2. Unverified user
-    const unverified = await createUser({
-      username: 'u_unverified_post',
-      email: 'unverified_post@example.com',
-      password: 'password123',
-      displayName: 'Unverified Poster',
-      emailVerified: false,
-    });
-
-    const loginRes = await request
-      .post('/api/v1/auth/login')
-      .set('Origin', config.APP_ORIGIN)
-      .set('X-Forwarded-For', '10.0.1.2')
-      .send({
-        identifier: unverified.email,
-        password: 'password123',
-      });
-    const unverifiedCookie = extractCookie(loginRes.headers);
-
-    const resUnverified = await request
-      .post('/api/v1/posts')
-      .set('Origin', config.APP_ORIGIN)
-      .set('Cookie', unverifiedCookie)
-      .set('X-Forwarded-For', '10.0.1.3')
-      .send({ body: 'Hello unverified' });
-    expect(resUnverified.status).toBe(403);
-    expect(resUnverified.body.error.code).toBe('EMAIL_NOT_VERIFIED');
   });
 
   it('POST /posts: creates original post, queues detection, returns 201 PostOutput', async () => {
@@ -77,7 +49,6 @@ describe('Posts Module (TASK-043)', () => {
       email: 'author_original@example.com',
       password: 'password123',
       displayName: 'Original Author',
-      emailVerified: true,
     });
 
     const loginRes = await request
@@ -128,7 +99,6 @@ describe('Posts Module (TASK-043)', () => {
       email: 'author_media@example.com',
       password: 'password123',
       displayName: 'Media Author',
-      emailVerified: true,
     });
 
     const pool = getTestPool();
@@ -190,7 +160,6 @@ describe('Posts Module (TASK-043)', () => {
         email: 'low_tier@example.com',
         password: 'password123',
         displayName: 'Low Tier Author',
-        emailVerified: true,
       });
 
       const pool = getTestPool();
@@ -250,7 +219,6 @@ describe('Posts Module (TASK-043)', () => {
       email: 'view_author@example.com',
       password: 'password123',
       displayName: 'View Author',
-      emailVerified: true,
     });
 
     const admin = await createUser({
@@ -259,7 +227,6 @@ describe('Posts Module (TASK-043)', () => {
       password: 'password123',
       displayName: 'View Admin',
       role: 'admin',
-      emailVerified: true,
     });
 
     const reader = await createUser({
@@ -267,7 +234,6 @@ describe('Posts Module (TASK-043)', () => {
       email: 'view_reader@example.com',
       password: 'password123',
       displayName: 'View Reader',
-      emailVerified: true,
     });
 
     const pool = getTestPool();
@@ -349,7 +315,6 @@ describe('Posts Module (TASK-043)', () => {
       email: 'editor@example.com',
       password: 'password123',
       displayName: 'Editor User',
-      emailVerified: true,
     });
 
     const loginRes = await request
@@ -403,7 +368,6 @@ describe('Posts Module (TASK-043)', () => {
       email: 'blocked_editor@example.com',
       password: 'password123',
       displayName: 'Blocked Editor',
-      emailVerified: true,
     });
 
     const loginRes = await request
@@ -449,10 +413,9 @@ describe('Posts Module (TASK-043)', () => {
     const postId2 = postRes2.body.id;
 
     // Set created_at to 2 hours ago
-    await pool.query(
-      `UPDATE posts SET created_at = now() - INTERVAL '2 hours' WHERE id = $1`,
-      [postId2],
-    );
+    await pool.query(`UPDATE posts SET created_at = now() - INTERVAL '2 hours' WHERE id = $1`, [
+      postId2,
+    ]);
 
     const expiredEdit = await request
       .patch(`/api/v1/posts/${postId2}`)
@@ -470,7 +433,6 @@ describe('Posts Module (TASK-043)', () => {
       email: 'delete_author@example.com',
       password: 'password123',
       displayName: 'Delete Author',
-      emailVerified: true,
     });
 
     const otherUser = await createUser({
@@ -478,7 +440,6 @@ describe('Posts Module (TASK-043)', () => {
       email: 'delete_other@example.com',
       password: 'password123',
       displayName: 'Other User',
-      emailVerified: true,
     });
 
     const authorLogin = await request
@@ -520,9 +481,7 @@ describe('Posts Module (TASK-043)', () => {
     expect(okDel.status).toBe(204);
 
     // 3. GET /posts/:id for public now returns 404
-    const pubGet = await request
-      .get(`/api/v1/posts/${postId}`)
-      .set('X-Forwarded-For', '10.0.8.6');
+    const pubGet = await request.get(`/api/v1/posts/${postId}`).set('X-Forwarded-For', '10.0.8.6');
     expect(pubGet.status).toBe(404);
 
     // 4. Reshare retraction test
@@ -551,7 +510,6 @@ describe('Posts Module (TASK-043)', () => {
       password: 'password123',
       displayName: 'Admin Reviewer',
       role: 'admin',
-      emailVerified: true,
     });
 
     // Insert fake assessment on orig post and eligible reputation event on resharer
@@ -596,7 +554,6 @@ describe('Posts Module (TASK-043)', () => {
       email: 'paginated@example.com',
       password: 'password123',
       displayName: 'Paginated Author',
-      emailVerified: true,
     });
 
     const pool = getTestPool();
@@ -619,7 +576,9 @@ describe('Posts Module (TASK-043)', () => {
 
     // Fetch page 2 (limit 2) using cursor
     const page2 = await request
-      .get(`/api/v1/users/${user.username}/posts?limit=2&cursor=${encodeURIComponent(page1.body.nextCursor)}`)
+      .get(
+        `/api/v1/users/${user.username}/posts?limit=2&cursor=${encodeURIComponent(page1.body.nextCursor)}`,
+      )
       .set('X-Forwarded-For', '10.0.9.2');
     expect(page2.status).toBe(200);
     expect(page2.body.items).toHaveLength(2);
@@ -633,7 +592,9 @@ describe('Posts Module (TASK-043)', () => {
 
     // Fetch page 3 (remaining 1)
     const page3 = await request
-      .get(`/api/v1/users/${user.username}/posts?limit=2&cursor=${encodeURIComponent(page2.body.nextCursor)}`)
+      .get(
+        `/api/v1/users/${user.username}/posts?limit=2&cursor=${encodeURIComponent(page2.body.nextCursor)}`,
+      )
       .set('X-Forwarded-For', '10.0.9.3');
     expect(page3.status).toBe(200);
     expect(page3.body.items).toHaveLength(1);

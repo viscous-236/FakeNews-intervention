@@ -14,7 +14,7 @@ service, including their sources, licenses, and limitations.
 | **Source** | Wang, William Yang. "Liar, Liar Pants on Fire: A New Benchmark Dataset for Fake News Detection." ACL 2017. |
 | **Original URL** | https://huggingface.co/datasets/ucsbnlp/liar |
 | **License** | See dataset repository (ACL 2017 workshop data) |
-| **Size** | Train: 10,269 / Validation: 1,284 / Test: 1,267 statements |
+| **Size** | Train: 10,269 / Validation: 1,284 / Test: 1,283 statements |
 | **Domain** | Short political statements from PolitiFact.com |
 | **Language** | English |
 

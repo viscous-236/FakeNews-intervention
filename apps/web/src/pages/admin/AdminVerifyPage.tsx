@@ -1,115 +1,101 @@
 import React, { useState } from 'react';
-import { Button } from '../../components/ui/Button';
+import { useVerifyScores } from '../../api/hooks';
 import { copy } from '../../copy';
-import { api } from '../../api/client';
-import { CheckCheck, CheckCircle2, AlertOctagon, ShieldCheck } from 'lucide-react';
+import { errorMessage } from '../../api/client';
+import { formatDateTime, shortId } from '../../lib/format';
+import { Button } from '../../components/ui/Button';
+import { ErrorState, Notice, PageHeader, Panel, SectionTitle } from '../../components/ui/Page';
 
-interface InvariantResult {
-  ok?: boolean;
-  passed?: boolean;
-  issues: Array<{
-    invariant: string;
-    message?: string;
-    userId?: string;
-    expected?: string;
-    actual?: string;
-  }>;
-}
+const INVARIANTS = ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] as const;
 
-export const AdminVerifyPage: React.FC = () => {
-  const [result, setResult] = useState<InvariantResult | null>(null);
-  const [isRunning, setIsRunning] = useState(false);
+/** Verify scores (TASK-097): run the I1–I6 audit and list every violation. */
+export function AdminVerifyPage(): React.ReactElement {
+  const verify = useVerifyScores();
+  const [ranAt, setRanAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const handleRunVerification = async () => {
-    try {
-      setIsRunning(true);
-      setError(null);
-      const res = await api.post<InvariantResult>('/api/v1/admin/verify-scores');
-      setResult(res);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : copy.error);
-    } finally {
-      setIsRunning(false);
-    }
-  };
+  const result = verify.data;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div>
-        <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
-          <ShieldCheck className="w-5 h-5 text-primary-600" aria-hidden="true" />
-          <span>{copy.admin.verify.title}</span>
-        </h2>
-        <p className="text-xs text-neutral-500 mt-0.5 leading-relaxed">
-          {copy.admin.verify.description}
-        </p>
-      </div>
-
-      <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-              Audit Invariants Engine
-            </h3>
-            <p className="text-xs text-neutral-400">
-              Performs exhaustive verification against database constraints and ledger rows.
-            </p>
-          </div>
-
+    <div className="mx-auto max-w-sheet">
+      <PageHeader
+        title={copy.admin.verify.title}
+        subtitle={copy.admin.verify.subtitle}
+        action={
           <Button
             variant="primary"
-            onClick={handleRunVerification}
-            isLoading={isRunning}
-            icon={<CheckCheck className="w-4 h-4" aria-hidden="true" />}
+            isLoading={verify.isPending}
+            onClick={() => {
+              setError(null);
+              verify.mutate(undefined, {
+                onSuccess: () => setRanAt(new Date().toISOString()),
+                onError: (err) => setError(errorMessage(err, copy.common.error)),
+              });
+            }}
           >
-            {isRunning ? copy.admin.verify.running : copy.admin.verify.runBtn}
+            {verify.isPending ? copy.admin.verify.running : copy.admin.verify.run}
           </Button>
+        }
+      />
+
+      {error ? (
+        <div className="mb-4">
+          <ErrorState message={error} />
         </div>
+      ) : null}
 
-        {error && (
-          <div
-            role="alert"
-            className="rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 p-3 text-xs text-red-700 dark:text-red-300"
-          >
-            {error}
-          </div>
-        )}
+      {result ? (
+        <div className="mb-6">
+          <Notice tone={result.ok ? 'positive' : 'negative'}>
+            {result.ok ? copy.admin.verify.passed : copy.admin.verify.failed(result.issues.length)}
+            {ranAt ? (
+              <span className="ml-2 text-small">
+                {copy.admin.verify.lastRun(formatDateTime(ranAt))}
+              </span>
+            ) : null}
+          </Notice>
+        </div>
+      ) : null}
 
-        {result && (
-          <div className="pt-2">
-            {(result.ok ?? result.passed ?? (result.issues?.length === 0)) ? (
-              <div className="rounded-xl bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-900/60 p-4 text-xs text-green-800 dark:text-green-200 flex items-center gap-3">
-                <CheckCircle2 className="w-6 h-6 text-green-600 shrink-0" aria-hidden="true" />
-                <div>
-                  <p className="font-bold text-sm">Audit Passed</p>
-                  <p>{copy.admin.verify.passed}</p>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 p-4 text-xs text-red-800 dark:text-red-200 space-y-3">
-                <div className="flex items-center gap-2">
-                  <AlertOctagon className="w-5 h-5 text-red-600 shrink-0" aria-hidden="true" />
-                  <p className="font-bold text-sm">
-                    {copy.admin.verify.failed(result.issues?.length ?? 0)}
-                  </p>
-                </div>
-                <ul className="list-disc list-inside space-y-1 font-mono text-[11px]">
-                  {(result.issues || []).map((issue, idx) => (
-                    <li key={idx}>
-                      <strong>{issue.invariant}:</strong>{' '}
-                      {issue.message ||
-                        `expected ${issue.expected}, got ${issue.actual}${
-                          issue.userId ? ` (user: ${issue.userId})` : ''
-                        }`}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      {result && !result.ok ? (
+        <div className="mb-8 overflow-x-auto">
+          <table className="w-full text-body">
+            <thead>
+              <tr className="text-left text-small text-muted">
+                <th className="py-2 pr-3 font-normal">{copy.admin.verify.columns.invariant}</th>
+                <th className="py-2 pr-3 font-normal">{copy.admin.verify.columns.user}</th>
+                <th className="py-2 pr-3 font-normal">{copy.admin.verify.columns.wave}</th>
+                <th className="py-2 pr-3 font-normal">{copy.admin.verify.columns.expected}</th>
+                <th className="py-2 font-normal">{copy.admin.verify.columns.actual}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-rule font-mono">
+              {result.issues.map((issue, i) => (
+                <tr key={i}>
+                  <td className="py-2 pr-3 text-negative">{issue.invariant}</td>
+                  <td className="py-2 pr-3">{shortId(issue.userId)}</td>
+                  <td className="py-2 pr-3">
+                    {issue.waveNumber ?? (issue.waveId ? shortId(issue.waveId) : copy.common.none)}
+                  </td>
+                  <td className="py-2 pr-3">{issue.expected}</td>
+                  <td className="py-2">{issue.actual}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
+      <SectionTitle>Invariants</SectionTitle>
+      <Panel>
+        <dl className="divide-y divide-rule">
+          {INVARIANTS.map((k) => (
+            <div key={k} className="flex gap-4 py-2 text-body">
+              <dt className="w-8 shrink-0 font-mono text-ink">{k}</dt>
+              <dd className="text-muted">{copy.admin.verify.invariants[k]}</dd>
+            </div>
+          ))}
+        </dl>
+      </Panel>
     </div>
   );
-};
+}

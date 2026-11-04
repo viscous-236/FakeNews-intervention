@@ -35,14 +35,12 @@ describe('Governance module', () => {
       email: 'governance_author@example.com',
       password: 'password123',
       displayName: 'Governance Author',
-      emailVerified: true,
     });
     const reporter = await createUser({
       username: 'governance_reporter',
       email: 'governance_reporter@example.com',
       password: 'password123',
       displayName: 'Governance Reporter',
-      emailVerified: true,
     });
     const admin = await createUser({
       username: 'governance_admin',
@@ -50,7 +48,6 @@ describe('Governance module', () => {
       password: 'password123',
       displayName: 'Governance Admin',
       role: 'admin',
-      emailVerified: true,
     });
 
     authorCookie = await login(request, author.email, 'password123');
@@ -91,11 +88,11 @@ describe('Governance module', () => {
     expect(report.status).toBe(201);
     expect(report.body.id).toEqual(expect.any(String));
 
-    const queue = await request
-      .get('/api/v1/admin/queue')
-      .set('Cookie', adminCookie);
+    const queue = await request.get('/api/v1/admin/queue').set('Cookie', adminCookie);
     expect(queue.status).toBe(200);
-    expect(queue.body.items.some((item: { post: { id: string } }) => item.post.id === postId)).toBe(true);
+    expect(queue.body.items.some((item: { post: { id: string } }) => item.post.id === postId)).toBe(
+      true,
+    );
 
     const assessment = await request
       .post(`/api/v1/admin/posts/${postId}/assessments`)
@@ -130,9 +127,7 @@ describe('Governance module', () => {
     );
     expect(reportStatus.rows[0]?.status).toBe('resolved');
 
-    const detail = await request
-      .get(`/api/v1/admin/posts/${postId}`)
-      .set('Cookie', adminCookie);
+    const detail = await request.get(`/api/v1/admin/posts/${postId}`).set('Cookie', adminCookie);
     expect(detail.status).toBe(200);
     expect(detail.body.assessments).toHaveLength(1);
     expect(detail.body.events).toEqual(

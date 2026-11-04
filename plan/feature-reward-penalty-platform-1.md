@@ -263,7 +263,6 @@ CREATE TABLE users (
   status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended','deleted')),
   sigma numeric(4,3) NOT NULL CHECK (sigma >= 0 AND sigma <= 1),
   q numeric(14,3) NOT NULL DEFAULT 0,
-  email_verified_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   deleted_at timestamptz
@@ -839,7 +838,7 @@ GROUP BY user_id;
 |---|---|---|
 | 400 | `VALIDATION_ERROR` | Body or query failed Zod validation (`details.fields`) |
 | 401 | `UNAUTHENTICATED`, `INVALID_CREDENTIALS` | No or invalid session; bad login |
-| 403 | `FORBIDDEN`, `EMAIL_NOT_VERIFIED`, `ACCOUNT_SUSPENDED`, `CONFLICT_OF_INTEREST` | Authorization failures |
+| 403 | `FORBIDDEN`, `ACCOUNT_SUSPENDED`, `CONFLICT_OF_INTEREST` | Authorization failures |
 | 404 | `NOT_FOUND` | Missing or invisible resource (also used when blocked) |
 | 409 | `CONFLICT`, `USERNAME_TAKEN`, `EMAIL_TAKEN`, `CONFIRMATION_REQUIRED`, `EDIT_NOT_ALLOWED`, `APPEAL_NOT_ALLOWED`, `ALREADY_EXISTS` | State conflicts |
 | 413 | `PAYLOAD_TOO_LARGE` | Upload above 5 MB |
@@ -861,16 +860,14 @@ GROUP BY user_id;
 - `LedgerRow`: `{waveNumber, nPos, nNeg, nAdj, r, sigmaUsed, qBefore, delta, qAfter, formulaVersion, finalizedAt}` (decimals as strings).
 - `EventItem`: `{id, kind, value, status, waveNumber|null, voidReason|null, post: {id, excerpt}, assessment: {verdict, source, createdAt, rationale}|null, reversesEventId|null, appeal: {id, status}|null, createdAt}`.
 
-**Endpoints.** Access: `Pub` no auth; `Auth` signed-in; `Act` signed-in, status `active`, email verified; `Adm` role `admin`.
+**Endpoints.** Access: `Pub` no auth; `Auth` signed-in; `Act` signed-in, status `active` (email verification removed, DEC-017); `Adm` role `admin`.
 
 | Method and path | Access | Request | Success | Notes |
 |---|---|---|---|---|
-| POST `/auth/register` | Pub | `{username, email, password (10..128), displayName}` | 201 `{user: Me}` + cookie | Creates sigma = `SIGMA_DEFAULT`, queues verification mail |
+| POST `/auth/register` | Pub | `{username, email, password (10..128), displayName}` | 201 `{user: Me}` + cookie | Creates sigma = `SIGMA_DEFAULT`; no verification mail (DEC-017) |
 | POST `/auth/login` | Pub | `{identifier, password}` | 200 `{user: Me}` + cookie | Lockout after 5 failures per identifier+IP in 15 min (429) |
 | POST `/auth/logout` | Auth | none | 204 | Deletes session |
 | GET `/auth/me` | Auth | none | 200 `{user: Me}` | |
-| POST `/auth/verify-email` | Pub | `{token}` | 204 | |
-| POST `/auth/resend-verification` | Auth | none | 204 | 3 per hour |
 | POST `/auth/forgot-password` | Pub | `{email}` | 204 always | |
 | POST `/auth/reset-password` | Pub | `{token, password}` | 204 | Deletes all sessions of the user |
 | POST `/auth/change-password` | Auth | `{currentPassword, newPassword}` | 204 | Keeps current session, deletes others |
@@ -953,7 +950,7 @@ GROUP BY user_id;
 | Path | Page | Data and behaviour |
 |---|---|---|
 | `/` | Home | Tabs Global and Following; composer (signed-in); infinite scroll |
-| `/login`, `/register`, `/forgot-password`, `/reset-password`, `/verify-email` | Auth pages | Forms with inline validation matching Zod schemas |
+| `/login`, `/register`, `/forgot-password`, `/reset-password` | Auth pages | Forms with inline validation matching Zod schemas |
 | `/p/:id` | Post detail | Post, comments, composer for comments, report dialog, reshare dialog |
 | `/u/:username`, `/u/:username/followers`, `/u/:username/following` | Profile | Header, tier badge, follow/block menu, posts tab |
 | `/search` | Search | Tabs Posts and Users, query in URL |
@@ -961,7 +958,7 @@ GROUP BY user_id;
 | `/messages`, `/messages/:username` | Direct messages | Conversation list and thread, live updates via WebSocket |
 | `/score` | My score | Current Q, tier, sigma, pending projection, history table, per-wave explanation drawer, events list with appeal button |
 | `/appeals` | My appeals | List and statuses |
-| `/settings` | Settings | Profile edit, avatar upload, password change, sessions list, blocks list, email verification status, data export, account deletion |
+| `/settings` | Settings | Profile edit, avatar upload, password change, sessions list, blocks list, data export, account deletion |
 | `/legal/terms`, `/legal/privacy`, `/legal/guidelines` | Static pages | Content authored in TASK-099 |
 | `/admin` | Overview | Counts and links |
 | `/admin/queue` | Review queue | Sorted by priority (includes reported auto_real posts) |
@@ -1038,7 +1035,6 @@ All variables are read in `apps/api/src/config.ts`, validated with Zod at startu
 | `Q_LOW_MAX` | `-1.500` | |
 | `HOLD_LOW_TIER_POSTS` | `false` | |
 | `PUBLIC_SCORE_VISIBILITY` | `tier_only` | `tier_only` or `full` |
-| `REQUIRE_EMAIL_VERIFICATION` | `true` | |
 | `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PUBLIC_BASE_URL`, `S3_FORCE_PATH_STYLE` | required (`S3_FORCE_PATH_STYLE=true` for MinIO) | |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE`, `EMAIL_FROM` | required | Mailpit locally: host `mailpit`, port `1025`, no auth |
 | `SENTRY_DSN` | empty | Disabled when empty |
@@ -1104,7 +1100,7 @@ Detector service variables: `DETECTOR_API_KEY`, `MODEL_DIR` (default `/app/artif
 - **SEC-006**: Rate limits of Section 1.7 are enforced and covered by tests.
 - **SEC-007**: `source_url` is stored and displayed only; the server never fetches it.
 - **SEC-008**: Uploads are validated by decoding, not by trusting extension or declared MIME.
-- **SEC-009**: Forgot-password always returns 204; verification and reset tokens are single-use, 32 random bytes, hashed at rest, expiring after 24 hours (verify) and 1 hour (reset).
+- **SEC-009**: Forgot-password always returns 204; reset tokens are single-use, 32 random bytes, hashed at rest, expiring after 1 hour.
 - **SEC-010**: Role and status checks are enforced server-side on every request; the client role is never trusted.
 - **SEC-011**: Secrets exist only in environment variables; `.env` is git-ignored; CI uses repository secrets.
 - **SEC-012**: CI runs `npm audit --audit-level=high` and `pip-audit`; failures block merge.
@@ -1183,7 +1179,7 @@ Execution rules: complete tasks in numeric order within a phase; a phase may sta
 | TASK-013 | Write `0003_governance_scoring.sql` containing the updated v2.0 0003 DDL of Section 1.4 (`waves`, `reports`, `assessments`, `assessments_guard_trg`, `user_wave_reputation`, `reputation_events` with all 7 kinds and `void_reason` check, `events_guard_trg`, `ledger_guard_trg`, `appeals` with `resolved_by_system`, `admin_audit_log`). | [x] | 2026-10-31 |
 | TASK-014 | Write `0004_social.sql` containing the updated v2.0 0004 DDL of Section 1.4 (`comments`, `likes` with `updated_at`, `deleted_at`, and `likes_target_original_trg`, `follows`, `blocks`, `notifications`, `messages`). | [x] | 2026-10-31 |
 | TASK-015 | Write `0005_search_and_views.sql` containing the updated v2.0 0005 DDL of Section 1.4 (including the fixed `review_queue_v` view that admits reported `auto_real` posts). Run all migrations on `app` and `app_test` and confirm a clean second run applies nothing. | [x] | 2026-10-31 |
-| TASK-016 | Implement `scripts/create-user.ts` (`--username --email --password --display-name [--sigma 0..1] [--admin]`, sets `email_verified_at = now()`, hashes with argon2id per SEC-001) and `scripts/create-admin.ts`. Both reuse `createUser` in `apps/api/src/modules/users/service.ts`. Tests: created admin has requested sigma; sigma outside [0,1] is rejected. | [x] | 2026-10-31 |
+| TASK-016 | Implement `scripts/create-user.ts` (`--username --email --password --display-name [--sigma 0..1] [--admin]`, hashes with argon2id per SEC-001) and `scripts/create-admin.ts`. Both reuse `createUser` in `apps/api/src/modules/users/service.ts`. Tests: created admin has requested sigma; sigma outside [0,1] is rejected. | [x] | 2026-10-31 |
 | TASK-017 | Write `apps/api/test/db/constraints.test.ts` (TEST-103) proving every DB invariant: sigma immutability; q update blocked without `app.scoring`; single open wave; ledger CHECKs and immutability; counted event immutability; eligible event transition to voided (`interaction_retracted`) and reactivation back to eligible succeeds while counted event transition to voided fails; `RESPONSIBLE_RESHARE` requires +1 and `MISINFO_LIKE` requires -1; liking a reshare post fails via `likes_target_original_trg`; `review_queue_v` includes an `auto_real`-assessed post as soon as an open report is inserted and excludes an admin-assessed post even with open reports. | [x] | 2026-10-31 |
 | TASK-018 | Write `apps/api/test/db/enum-parity.test.ts` (TEST-104) that parses the CHECK lists from the migration SQL text (including the 7 `reputation_events.kind` values and 3 `void_reason` values) and asserts they equal the arrays exported by `packages/shared/src/enums.ts`. | [x] | 2026-10-31 |
 | TASK-019 | Implement `src/db/cursor.ts` (`encodeCursor(createdAt, id)`, `decodeCursor`, rejects malformed cursors with `VALIDATION_ERROR`) and `src/db/errors.ts` (maps pg error codes 23505 to `CONFLICT`, 23503 to `CONFLICT`, 23514 to `VALIDATION_ERROR`, 57014 to `UNAVAILABLE`). Unit tests for round trip and malformed input. | [x] | 2026-10-31 |
@@ -1249,7 +1245,7 @@ Execution rules: complete tasks in numeric order within a phase; a phase may sta
 |---|---|---|---|
 | TASK-037 | Implement middleware in `apps/api/src/middleware/`: `originCheck.ts`, `security.ts`, `rateLimit.ts`, `validate.ts`, `auth.ts`, `errors.ts`. Tests for each middleware. | [x] | 2026-10-31 |
 | TASK-038 | Implement `modules/auth` (register, login, logout, me) and Zod schemas in `packages/shared/src/schemas/auth.ts`. Tests TEST-040–TEST-045. | [x] | 2026-10-31 |
-| TASK-039 | Implement `modules/email` (`enqueueEmail`, outbox loop) and token flows in `modules/auth` (verify-email, resend-verification, forgot-password, reset-password, change-password, sessions). Tests TEST-046–TEST-047. | [x] | 2026-10-31 |
+| TASK-039 | Implement `modules/email` (`enqueueEmail`, outbox loop) and token flows in `modules/auth` (forgot-password, reset-password, change-password, sessions). Tests TEST-046–TEST-047. | [x] | 2026-10-31 |
 | TASK-040 | Implement `modules/users` (`GET /users/:username`, `PATCH /users/me`). Tests for forbidden fields and q visibility (RUL-023). | [x] | 2026-10-31 |
 | TASK-041 | Implement `modules/media`, `src/storage/s3.ts`, and `jobs/mediaCleanup.ts`. Tests against real MinIO. | [x] | 2026-10-31 |
 | TASK-042 | Implement `modules/notifications` core (`createNotification`, `bus.ts`, `sse.ts`, routes). Tests over real SSE. | [x] | 2026-10-31 |
@@ -1598,13 +1594,13 @@ All tests use real services (REQ-002, REQ-017). Numeric cases use exact decimal 
 - **TEST-033**: Repeated reshare and repeated like idempotency (Audit Gap 7): On a post currently assessed as fake, User X likes -> unlikes (voided) -> re-likes -> unlikes -> re-likes, and reshares -> deletes reshare (voided) -> re-shares. Zero 23505 unique constraint errors occur; exactly one eligible `MISINFO_LIKE` and one eligible `MISINFO_RESHARE` exist for User X.
 - **TEST-034**: Publisher reputation independence (DEC-002, Audit Gap 3): Publisher A (trusted, Q = +5.0) and Publisher B (low, Q = -3.0) each publish a post later assessed as fake. User X (`sigma_X = 0.5`) likes and reshares both posts. User X's events for A's post and B's post have identical integer values (-1 each).
 - **TEST-035**: Flat publisher penalty on viral false post (DEC-004, Audit Gap 3): Publisher A publishes Post P_1 (0 likes, 0 reshares) and Post P_2 (25 likes, 15 reshares). Both are assessed as fake. Publisher A receives exactly one `MISINFO_POST` (-1) for P_1 and one `MISINFO_POST` (-1) for P_2.
-- **TEST-040**: Register creates a user with `sigma = SIGMA_DEFAULT`, `q = 0.000`, an unverified email and a queued verification mail.
+- **TEST-040**: Register creates a user with `sigma = SIGMA_DEFAULT`, `q = 0.000`, a session, and queues no mail (DEC-017).
 - **TEST-041**: Duplicate username or email (case-insensitive) returns 409 `USERNAME_TAKEN` or `EMAIL_TAKEN`.
 - **TEST-042**: Login success sets the cookie with `HttpOnly`, `SameSite=Lax` and `Secure` per config; wrong password and unknown user both return the same 401 body.
 - **TEST-043**: Five failed logins in 15 minutes lock further attempts with 429.
 - **TEST-044**: Logout deletes the session; the old cookie returns 401.
 - **TEST-045**: An expired session returns 401 and is deleted.
-- **TEST-046**: Email verification through a real Mailpit message works once; an expired or reused token fails.
+- **TEST-046**: Removed with email verification (DEC-017).
 - **TEST-047**: Forgot-password for an unknown email returns 204 with no mail; reset changes the password and deletes all sessions.
 - **TEST-050**: Admin verdict `real` creates one eligible `RESPONSIBLE_POST` (+1) in the open wave.
 - **TEST-051**: Verdict `fake` creates one eligible `MISINFO_POST` (-1) and only when the source is `admin`.
@@ -1670,7 +1666,7 @@ All tests use real services (REQ-002, REQ-017). Numeric cases use exact decimal 
 - **RISK-001**: Detector accuracy on LIAR-style text is modest and the model does not generalize to arbitrary posts. Mitigation: bands, human review, no automatic penalties, honest reporting (CON-009).
 - **RISK-002**: Free-tier limits change or the detector exceeds the memory limit. Mitigation: TASK-121 re-verification; the selection rule falls back to the small baseline; paid instance if needed.
 - **RISK-003**: Admin workload grows. Mitigation: priority ordering in the queue, optional auto-real rule, and caps.
-- **RISK-004**: Users evade penalties with new accounts. Mitigation: documented limitation; email verification required to post; rate limits.
+- **RISK-004**: Users evade penalties with new accounts. Mitigation: documented limitation; registration and posting rate limits; admin suspension (email verification removed, DEC-017).
 - **RISK-005**: Cold starts delay the first detection. Mitigation: asynchronous detection, warm-up call, backoff retries, posts remain usable.
 - **RISK-006**: Dataset license terms restrict use. Mitigation: record terms in `docs/DATASETS.md`; the platform is an academic project; replace the dataset by editing only the training scripts and the contract stays unchanged.
 - **RISK-007**: `sharp` native binaries fail to build in a host image. Mitigation: use the Node LTS slim image with prebuilt binaries and test the Docker build in CI.

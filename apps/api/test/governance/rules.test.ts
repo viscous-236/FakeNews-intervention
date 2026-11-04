@@ -388,12 +388,11 @@ describe('Governance policy safeguards', () => {
     expect(reward.rows).toEqual([{ user_id: sharer.id, value: 1, status: 'eligible' }]);
   });
 
-  it.each(['anonymous', 'user', 'unverified', 'suspended'])(
+  it.each(['anonymous', 'user', 'suspended'])(
     'denies assessment authority to %s callers',
     async (state) => {
       const user = await createTestUser({
         role: state === 'user' ? 'user' : 'admin',
-        emailVerified: state !== 'unverified',
         status: state === 'suspended' ? 'suspended' : 'active',
       });
       const call = request

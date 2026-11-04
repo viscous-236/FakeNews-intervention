@@ -102,10 +102,9 @@ describe('Scoring Engine Edge Cases & Full Coverage (REQ-018)', () => {
     });
 
     await withTransaction(async (tx) => {
-      await tx.query(
-        `UPDATE posts SET status = 'deleted', deleted_at = now() WHERE id = $1`,
-        [resharePostId],
-      );
+      await tx.query(`UPDATE posts SET status = 'deleted', deleted_at = now() WHERE id = $1`, [
+        resharePostId,
+      ]);
       await retractReshareEventOnDelete(tx, resharer.id, postId);
     });
 
@@ -142,9 +141,9 @@ describe('Scoring Engine Edge Cases & Full Coverage (REQ-018)', () => {
     expect(resAuto.alreadyFinalized).toBe(false);
 
     // Finalize with non-existent waveId throws NOT_FOUND
-    await expect(
-      finalizeWave('00000000-0000-0000-0000-000000000000'),
-    ).rejects.toThrow(/Wave not found/);
+    await expect(finalizeWave('00000000-0000-0000-0000-000000000000')).rejects.toThrow(
+      /Wave not found/,
+    );
   });
 
   it('corrections: supersedeAssessment throws NOT_FOUND for non-existent assessment and CONFLICT for superseded assessment', async () => {
@@ -330,7 +329,13 @@ describe('Scoring Engine Edge Cases & Full Coverage (REQ-018)', () => {
     await finalizeWave(waveToFinalize.id, { kind: 'system' });
 
     // Pick a user ledger row from the finalized wave
-    const rowRes = await pool.query<{ user_id: string; wave_id: string; n_pos: number; n_neg: number; n_adj: number }>(
+    const rowRes = await pool.query<{
+      user_id: string;
+      wave_id: string;
+      n_pos: number;
+      n_neg: number;
+      n_adj: number;
+    }>(
       `SELECT user_id, wave_id, n_pos, n_neg, n_adj FROM user_wave_reputation WHERE wave_id = $1 LIMIT 1`,
       [waveToFinalize.id],
     );
@@ -338,7 +343,9 @@ describe('Scoring Engine Edge Cases & Full Coverage (REQ-018)', () => {
 
     // Temporarily alter ledger row to trigger I5 discrepancy
     await pool.query(`ALTER TABLE user_wave_reputation DISABLE TRIGGER ledger_guard_trg`);
-    await pool.query(`ALTER TABLE user_wave_reputation DROP CONSTRAINT IF EXISTS user_wave_reputation_check`);
+    await pool.query(
+      `ALTER TABLE user_wave_reputation DROP CONSTRAINT IF EXISTS user_wave_reputation_check`,
+    );
     await pool.query(
       `UPDATE user_wave_reputation SET n_pos = 99, n_neg = 88, n_adj = 77 WHERE user_id = $1 AND wave_id = $2`,
       [row.user_id, row.wave_id],

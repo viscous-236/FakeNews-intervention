@@ -11,7 +11,7 @@ import { type UserRow } from '../users/repo.js';
 export interface EmailTokenRow {
   id: string;
   user_id: string;
-  purpose: 'verify_email' | 'reset_password';
+  purpose: 'reset_password';
   token_hash: string;
   expires_at: Date;
   used_at: Date | null;
@@ -98,7 +98,7 @@ export async function deleteSessionByTokenHash(
 
 export async function createEmailToken(
   userId: string,
-  purpose: 'verify_email' | 'reset_password',
+  purpose: 'reset_password',
   tokenHash: string,
   expiresAt: Date,
   client?: PoolClient,
@@ -131,7 +131,7 @@ export async function queueOutboxEmail(
 
 export async function findEmailTokenByHash(
   tokenHash: string,
-  purpose: 'verify_email' | 'reset_password',
+  purpose: 'reset_password',
   client?: PoolClient,
 ): Promise<EmailTokenRow | null> {
   const executor = client ?? getPool();
@@ -143,26 +143,9 @@ export async function findEmailTokenByHash(
   return res.rows[0] ?? null;
 }
 
-export async function markEmailTokenUsed(
-  id: string,
-  client?: PoolClient,
-): Promise<void> {
+export async function markEmailTokenUsed(id: string, client?: PoolClient): Promise<void> {
   const executor = client ?? getPool();
-  await executor.query(
-    `UPDATE email_tokens SET used_at = now() WHERE id = $1`,
-    [id],
-  );
-}
-
-export async function setUserEmailVerified(
-  userId: string,
-  client?: PoolClient,
-): Promise<void> {
-  const executor = client ?? getPool();
-  await executor.query(
-    `UPDATE users SET email_verified_at = now(), updated_at = now() WHERE id = $1`,
-    [userId],
-  );
+  await executor.query(`UPDATE email_tokens SET used_at = now() WHERE id = $1`, [id]);
 }
 
 export async function updateUserPassword(
@@ -171,21 +154,15 @@ export async function updateUserPassword(
   client?: PoolClient,
 ): Promise<void> {
   const executor = client ?? getPool();
-  await executor.query(
-    `UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2`,
-    [passwordHash, userId],
-  );
+  await executor.query(`UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2`, [
+    passwordHash,
+    userId,
+  ]);
 }
 
-export async function deleteAllUserSessions(
-  userId: string,
-  client?: PoolClient,
-): Promise<void> {
+export async function deleteAllUserSessions(userId: string, client?: PoolClient): Promise<void> {
   const executor = client ?? getPool();
-  await executor.query(
-    `DELETE FROM sessions WHERE user_id = $1`,
-    [userId],
-  );
+  await executor.query(`DELETE FROM sessions WHERE user_id = $1`, [userId]);
 }
 
 export async function deleteUserSessionsExcept(
@@ -194,16 +171,13 @@ export async function deleteUserSessionsExcept(
   client?: PoolClient,
 ): Promise<void> {
   const executor = client ?? getPool();
-  await executor.query(
-    `DELETE FROM sessions WHERE user_id = $1 AND id <> $2`,
-    [userId, keepSessionId],
-  );
+  await executor.query(`DELETE FROM sessions WHERE user_id = $1 AND id <> $2`, [
+    userId,
+    keepSessionId,
+  ]);
 }
 
-export async function findUserSessions(
-  userId: string,
-  client?: PoolClient,
-): Promise<SessionRow[]> {
+export async function findUserSessions(userId: string, client?: PoolClient): Promise<SessionRow[]> {
   const executor = client ?? getPool();
   const res = await executor.query<SessionRow>(
     `SELECT id, user_id, token_hash, created_at, expires_at, last_seen_at, user_agent, ip
@@ -221,9 +195,9 @@ export async function deleteSessionById(
   client?: PoolClient,
 ): Promise<boolean> {
   const executor = client ?? getPool();
-  const res = await executor.query(
-    `DELETE FROM sessions WHERE id = $1 AND user_id = $2`,
-    [sessionId, userId],
-  );
+  const res = await executor.query(`DELETE FROM sessions WHERE id = $1 AND user_id = $2`, [
+    sessionId,
+    userId,
+  ]);
   return (res.rowCount ?? 0) > 0;
 }

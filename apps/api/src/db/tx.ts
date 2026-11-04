@@ -16,9 +16,7 @@
 
 import { getPool, type PoolClient } from './pool.js';
 
-export async function withTransaction<T>(
-  fn: (client: PoolClient) => Promise<T>,
-): Promise<T> {
+export async function withTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
   const pool = getPool();
   const client = await pool.connect();
   try {

@@ -4,7 +4,7 @@
  * Tests for logging redaction (Pino) and graceful shutdown flow.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import http from 'http';
 import pino from 'pino';
 import { executeGracefulShutdown } from '../../src/shutdown.js';
@@ -61,7 +61,14 @@ describe('TASK-105: Logging Redaction and Graceful Shutdown (REQ-037)', () => {
         'User action completed',
       );
 
-      const parsed = JSON.parse(loggedOutput.trim()) as Record<string, any>;
+      const parsed = JSON.parse(loggedOutput.trim()) as {
+        userId?: string;
+        publicField?: string;
+        email?: string;
+        password?: string;
+        token?: string;
+        req: { headers: { authorization?: string; cookie?: string } };
+      };
 
       // Confirm safe fields are retained
       expect(parsed.userId).toBe('user-123');

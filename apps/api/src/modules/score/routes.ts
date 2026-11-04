@@ -8,6 +8,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate, requireAuth, requireActive } from '../../middleware/auth.js';
 import { appealsLimiter } from '../../middleware/rateLimit.js';
 import { validate } from '../../middleware/validate.js';
+import { AppError } from '../../middleware/errors.js';
 import { z } from 'zod';
 import {
   appealSchema,
@@ -73,21 +74,14 @@ scoreRouter.get(
   requireAuth,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const waveNumber = parseInt(req.params.waveNumber as string, 10);
-      if (isNaN(waveNumber)) {
-        res.status(400).json({
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid wave number',
-          },
+      const waveNumber = Number.parseInt(req.params.waveNumber as string, 10);
+      if (!Number.isInteger(waveNumber) || waveNumber < 1) {
+        throw new AppError(400, 'VALIDATION_ERROR', 'Invalid wave number', {
+          fields: { waveNumber: ['Must be a positive integer'] },
         });
-        return;
       }
 
-      const result = await getMyScoreHistoryByWaveNumber(
-        req.user!.id,
-        waveNumber,
-      );
+      const result = await getMyScoreHistoryByWaveNumber(req.user!.id, waveNumber);
       res.status(200).json(result);
     } catch (err) {
       next(err);
@@ -128,11 +122,7 @@ scoreRouter.post(
   validate({ body: appealSchema, params: z.object({ id: z.string().uuid() }).strict() }),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await appealEvent(
-        req.user!.id,
-        req.params.id as string,
-        req.body,
-      );
+      const result = await appealEvent(req.user!.id, req.params.id as string, req.body);
       res.status(201).json(result);
     } catch (err) {
       next(err);
@@ -166,9 +156,7 @@ scoreRouter.get(
   authenticate,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const viewer = req.user
-        ? { id: req.user.id, role: req.user.role }
-        : undefined;
+      const viewer = req.user ? { id: req.user.id, role: req.user.role } : undefined;
       const score = await getUserScore(req.params.username as string, viewer);
       res.status(200).json(score);
     } catch (err) {

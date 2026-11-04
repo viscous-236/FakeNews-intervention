@@ -14,6 +14,8 @@
     "dev:api": "node --env-file=.env ./node_modules/.bin/tsx watch apps/api/src/index.ts",
     "dev:web": "npm run dev -w apps/web",
     "lint": "eslint .",
+    "format": "prettier --write \"apps/**/*.{ts,tsx,js,cjs,mjs,css}\" \"packages/**/*.{ts,js,cjs}\" \"scripts/**/*.{ts,js,cjs,mjs}\" \"tools/**/*.{ts,js,cjs}\" \"e2e/**/*.ts\" \"*.{js,cjs,ts}\"",
+    "format:check": "prettier --check \"apps/**/*.{ts,tsx,js,cjs,mjs,css}\" \"packages/**/*.{ts,js,cjs}\" \"scripts/**/*.{ts,js,cjs,mjs}\" \"tools/**/*.{ts,js,cjs}\" \"e2e/**/*.ts\" \"*.{js,cjs,ts}\"",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",

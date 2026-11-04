@@ -18,11 +18,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import http from 'http';
 import crypto from 'crypto';
-import {
-  predict,
-  checkDetectorHealth,
-  getDetectorModelInfo,
-} from '../../src/detection/client.js';
+import { predict, checkDetectorHealth, getDetectorModelInfo } from '../../src/detection/client.js';
 
 describe('Detector Client (TASK-048, Section 1.6)', () => {
   let server: http.Server;
@@ -74,8 +70,14 @@ describe('Detector Client (TASK-048, Section 1.6)', () => {
       // Deliberately never finish the response; the client must abort it.
     };
     const calls = [
-      () => predict({ requestId: crypto.randomUUID(), postId: crypto.randomUUID(),
-        text: 'A claim for a stalled response', baseUrl, timeoutMs: 100 }),
+      () =>
+        predict({
+          requestId: crypto.randomUUID(),
+          postId: crypto.randomUUID(),
+          text: 'A claim for a stalled response',
+          baseUrl,
+          timeoutMs: 100,
+        }),
       () => checkDetectorHealth({ baseUrl, timeoutMs: 100 }),
       () => getDetectorModelInfo({ baseUrl, timeoutMs: 100 }),
     ];
@@ -383,9 +385,7 @@ describe('Detector Client (TASK-048, Section 1.6)', () => {
         res.end(JSON.stringify({ error: { code: 'UNAUTHORIZED' } }));
       };
 
-      await expect(
-        getDetectorModelInfo({ baseUrl, apiKey: 'bad_key' }),
-      ).rejects.toMatchObject({
+      await expect(getDetectorModelInfo({ baseUrl, apiKey: 'bad_key' })).rejects.toMatchObject({
         errorCode: 'HTTP_401',
       });
     });

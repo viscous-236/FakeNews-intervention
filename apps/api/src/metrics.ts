@@ -65,16 +65,20 @@ export function metricsMiddleware(req: Request, res: Response, next: NextFunctio
 /**
  * GET /metrics handler guarded by METRICS_TOKEN.
  */
-export async function metricsHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function metricsHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
   try {
-    // If METRICS_TOKEN is configured, verify bearer token or query param
+    // Bearer token only (Section 1.7). A query-string token would leak into
+    // access logs and proxies, so it is not accepted. METRICS_TOKEN is
+    // mandatory in production (config.ts); when unset in development or test
+    // the endpoint is open on the local machine only.
     if (config.METRICS_TOKEN) {
       const authHeader = req.headers.authorization;
       const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
-      const queryToken = typeof req.query.token === 'string' ? req.query.token : null;
-      const providedToken = bearerToken || queryToken;
-
-      if (!providedToken || providedToken !== config.METRICS_TOKEN) {
+      if (!bearerToken || bearerToken !== config.METRICS_TOKEN) {
         throw new AppError(401, 'UNAUTHORIZED', 'Invalid or missing metrics token');
       }
     }

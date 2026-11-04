@@ -26,7 +26,9 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   });
 
   if (!values.username || !values.email || !values.password || !values['display-name']) {
-    console.error('Usage: create-admin.ts --username <name> --email <email> --password <pwd> --display-name <name> [--sigma <0..1>]');
+    console.error(
+      'Usage: create-admin.ts --username <name> --email <email> --password <pwd> --display-name <name> [--sigma <0..1>]',
+    );
     process.exitCode = 1;
     return;
   }
@@ -46,7 +48,6 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
       displayName: values['display-name'],
       role: 'admin',
       sigma,
-      emailVerified: true,
     });
     console.log(`Created admin ${user.username} (${user.id}) with sigma=${user.sigma}`);
   } catch (err) {

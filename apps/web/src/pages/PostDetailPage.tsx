@@ -1,270 +1,197 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { flatten, useComments, useCreateComment, useDeleteComment, usePost } from '../api/hooks';
+import { copy } from '../copy';
+import { errorMessage } from '../api/client';
+import { formatRelative, pluralize } from '../lib/format';
 import { PostCard } from '../components/posts/PostCard';
+import { PostBody } from '../components/posts/PostBody';
 import { Avatar } from '../components/ui/Avatar';
 import { TierBadge } from '../components/ui/Badge';
-import { Button } from '../components/ui/Button';
-import { copy } from '../copy';
-import { Post, Comment, PaginatedResponse } from '../types';
-import { api } from '../api/client';
-import { ArrowLeft, MessageSquare, Send, Trash2, Info, Loader2 } from 'lucide-react';
+import { Button, IconButton } from '../components/ui/Button';
+import { ConfirmDialog } from '../components/ui/Modal';
+import {
+  EmptyState,
+  ErrorState,
+  LoadMore,
+  LoadingRows,
+  PageHeader,
+  SectionTitle,
+} from '../components/ui/Page';
+import { Trash2 } from 'lucide-react';
 
-export const PostDetailPage: React.FC = () => {
+export function PostDetailPage(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const { me } = useAuth();
-
-  const [post, setPost] = useState<Post | null>(null);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [newCommentBody, setNewCommentBody] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const { me, canAct, isAdmin } = useAuth();
+  const post = usePost(id);
+  const comments = useComments(id);
+  const createComment = useCreateComment(id ?? '');
+  const deleteComment = useDeleteComment(id ?? '');
+  const [body, setBody] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const items = flatten(comments.data);
 
-  useEffect(() => {
-    let mounted = true;
-    if (!id) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    Promise.all([
-      api.get<Post | { post: Post }>(`/api/v1/posts/${id}`),
-      api.get<PaginatedResponse<Comment>>(`/api/v1/posts/${id}/comments`),
-    ])
-      .then(([postRes, commentsRes]) => {
-        if (!mounted) return;
-        const loadedPost = postRes && 'post' in postRes && postRes.post ? postRes.post : (postRes as Post);
-        setPost(loadedPost);
-        setComments(commentsRes?.items || []);
-      })
-      .catch((err: unknown) => {
-        if (!mounted) return;
-        setError(err instanceof Error ? err.message : copy.error);
-      })
-      .finally(() => {
-        if (mounted) setIsLoading(false);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, [id]);
-
-  const handleCreateComment = async (e: React.FormEvent) => {
+  function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!id || !newCommentBody.trim() || isSubmittingComment) return;
-
-    try {
-      setIsSubmittingComment(true);
-      const res = await api.post<Comment | { comment: Comment }>(`/api/v1/posts/${id}/comments`, {
-        body: newCommentBody.trim(),
-      });
-      const createdComment = res && 'comment' in res && res.comment ? res.comment : (res as Comment);
-      setComments((prev) => [createdComment, ...prev]);
-      setNewCommentBody('');
-      if (post) {
-        setPost({
-          ...post,
-          counts: { ...post.counts, comments: post.counts.comments + 1 },
-        });
-      }
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : copy.error);
-    } finally {
-      setIsSubmittingComment(false);
-    }
-  };
-
-  const handleDeleteComment = async (commentId: string) => {
-    if (!id || !window.confirm(copy.comments.deleteConfirm)) return;
-    try {
-      await api.delete(`/api/v1/comments/${commentId}`);
-      setComments((prev) => prev.filter((c) => c.id !== commentId));
-      if (post) {
-        setPost({
-          ...post,
-          counts: { ...post.counts, comments: Math.max(0, post.counts.comments - 1) },
-        });
-      }
-    } catch {
-      // ignore
-    }
-  };
+    const trimmed = body.trim();
+    if (!trimmed || trimmed.length > 300) return;
+    setError(null);
+    createComment.mutate(trimmed, {
+      onSuccess: () => setBody(''),
+      onError: (err) => setError(errorMessage(err, copy.common.error)),
+    });
+  }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      {/* Top back navigation */}
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          className="p-2 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus:outline-none"
-          aria-label={copy.back}
-        >
-          <ArrowLeft className="w-5 h-5" aria-hidden="true" />
-        </button>
-        <h1 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
-          Post
-        </h1>
-      </div>
+    <div className="mx-auto max-w-3xl">
+      <PageHeader title={copy.post.openPost} backTo="/" backLabel={copy.feed.title} />
 
-      {isLoading ? (
-        <div className="py-16 text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary-600" aria-hidden="true" />
-          <p className="mt-3 text-sm text-neutral-500">{copy.loading}</p>
-        </div>
-      ) : error || !post ? (
-        <div
-          role="alert"
-          className="rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 p-4 text-center text-sm text-red-700 dark:text-red-300"
-        >
-          {error || copy.empty}
-        </div>
+      {post.isLoading ? (
+        <LoadingRows rows={1} />
+      ) : post.isError || !post.data ? (
+        <ErrorState
+          message={errorMessage(post.error, copy.notFound.body)}
+          onRetry={() => void post.refetch()}
+        />
       ) : (
         <>
-          <PostCard
-            post={post}
-            showCommentsLink={false}
-            onPostUpdated={(updated) => setPost(updated)}
-            onPostDeleted={() => navigate('/')}
-          />
-
-          {/* Comment Policy Notice (DEC-006) */}
-          <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 p-3 text-xs text-blue-700 dark:text-blue-300 flex items-start gap-2">
-            <Info className="w-4 h-4 shrink-0 mt-0.5 text-blue-500" aria-hidden="true" />
-            <span>{copy.comments.policyNote}</span>
+          <div className="border-b border-border">
+            <PostCard post={post.data} detail />
           </div>
 
-          {/* Comment Composer */}
-          {me ? (
-            <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-4 shadow-sm">
-              <form onSubmit={handleCreateComment}>
-                <div className="flex gap-3">
-                  <Avatar
-                    username={me.username}
-                    displayName={me.displayName}
-                    avatarUrl={me.avatarUrl}
-                    size="sm"
+          <section className="mt-6" aria-labelledby="comments-title">
+            <SectionTitle>
+              <span id="comments-title">
+                {copy.comments.title}{' '}
+                <span className="num text-muted">{post.data.counts.comments}</span>
+              </span>
+            </SectionTitle>
+            <p className="mb-4 text-small text-muted">{copy.comments.policyNote}</p>
+
+            {me ? (
+              <form onSubmit={submit} className="mb-4 flex gap-3">
+                <Avatar
+                  avatarUrl={me.avatarUrl}
+                  displayName={me.displayName}
+                  username={me.username}
+                  size="sm"
+                  className="mt-1"
+                />
+                <div className="min-w-0 flex-1">
+                  <label htmlFor="comment-body" className="sr-only">
+                    {copy.comments.placeholder}
+                  </label>
+                  <textarea
+                    id="comment-body"
+                    rows={2}
+                    maxLength={300}
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    placeholder={copy.comments.placeholder}
+                    disabled={!canAct}
+                    className="block w-full rounded-control border border-control bg-surface px-3 py-2 text-body text-ink placeholder:text-faint disabled:bg-raised"
                   />
-                  <div className="flex-1">
-                    <label htmlFor="comment-textarea" className="sr-only">
-                      {copy.comments.placeholder}
-                    </label>
-                    <textarea
-                      id="comment-textarea"
-                      rows={2}
-                      maxLength={300}
-                      value={newCommentBody}
-                      onChange={(e) => setNewCommentBody(e.target.value)}
-                      placeholder={copy.comments.placeholder}
-                      className="w-full resize-none border-0 bg-transparent p-0 text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus:ring-0 focus:outline-none"
-                    />
-                    <div className="mt-2 pt-2 border-t border-neutral-100 dark:border-neutral-700 flex justify-between items-center">
-                      <span className="text-xs text-neutral-400">
-                        {copy.composer.charCount(newCommentBody.trim().length, 300)}
-                      </span>
-                      <Button
-                        type="submit"
-                        size="sm"
-                        variant="primary"
-                        disabled={!newCommentBody.trim() || isSubmittingComment}
-                        isLoading={isSubmittingComment}
-                        icon={<Send className="w-3.5 h-3.5" aria-hidden="true" />}
-                      >
-                        {copy.comments.submit}
-                      </Button>
-                    </div>
+                  {error ? <p className="mt-1 text-small text-negative">{error}</p> : null}
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="num text-small text-muted">
+                      {copy.common.characters(body.trim().length, 300)}
+                    </span>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      variant="primary"
+                      disabled={!canAct || !body.trim()}
+                      isLoading={createComment.isPending}
+                    >
+                      {createComment.isPending ? copy.comments.submitting : copy.comments.submit}
+                    </Button>
                   </div>
                 </div>
               </form>
-            </div>
-          ) : (
-            <div className="bg-neutral-50 dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-4 text-center">
-              <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
-                Sign in to participate in the conversation.
-              </p>
-              <Link to="/login">
-                <Button size="sm" variant="outline">
-                  {copy.app.nav.login}
-                </Button>
-              </Link>
-            </div>
-          )}
-
-          {/* Comments List */}
-          <div className="space-y-3">
-            <h2 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-1.5">
-              <MessageSquare className="w-4 h-4 text-neutral-500" aria-hidden="true" />
-              <span>{copy.comments.title} ({comments.length})</span>
-            </h2>
-
-            {comments.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 p-6 text-center text-xs text-neutral-500">
-                {copy.comments.empty}
-              </div>
             ) : (
-              comments.map((comment) => (
-                <div
-                  key={comment.id}
-                  className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-3.5 shadow-sm space-y-2"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Link to={`/u/${comment.author.username}`}>
+              <p className="mb-4 text-body text-muted">
+                <Link to="/login" className="text-accent hover:underline">
+                  {copy.post.signInToInteract}
+                </Link>
+              </p>
+            )}
+
+            {comments.isLoading ? (
+              <LoadingRows rows={2} />
+            ) : comments.isError ? (
+              <ErrorState
+                message={errorMessage(comments.error, copy.common.error)}
+                onRetry={() => void comments.refetch()}
+              />
+            ) : items.length === 0 ? (
+              <EmptyState>{copy.comments.empty}</EmptyState>
+            ) : (
+              <>
+                <ul className="divide-y divide-rule">
+                  {items.map((c) => (
+                    <li key={c.id} className="flex gap-3 py-3">
+                      <Link to={`/u/${c.author.username}`} className="shrink-0 rounded-full">
                         <Avatar
-                          username={comment.author.username}
-                          displayName={comment.author.displayName}
-                          avatarUrl={comment.author.avatarUrl}
+                          avatarUrl={c.author.avatarUrl}
+                          displayName={c.author.displayName}
+                          username={c.author.username}
                           size="sm"
                         />
                       </Link>
-                      <div>
-                        <div className="flex items-center gap-1.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-small">
                           <Link
-                            to={`/u/${comment.author.username}`}
-                            className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 hover:underline"
+                            to={`/u/${c.author.username}`}
+                            className="font-medium text-ink hover:underline"
                           >
-                            {comment.author.displayName}
+                            {c.author.displayName}
                           </Link>
-                          <span className="text-xs text-neutral-400">
-                            @{comment.author.username}
-                          </span>
-                          <TierBadge tier={comment.author.tier} />
+                          <span className="text-muted">@{c.author.username}</span>
+                          <TierBadge tier={c.author.tier} />
+                          <time dateTime={c.createdAt} className="text-muted">
+                            {formatRelative(c.createdAt)}
+                          </time>
                         </div>
-                        <time className="text-[11px] text-neutral-400">
-                          {new Date(comment.createdAt).toLocaleDateString(undefined, {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </time>
+                        <PostBody text={c.body} className="mt-0.5 text-body" />
                       </div>
-                    </div>
-
-                    {me && me.id === comment.author.id && (
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteComment(comment.id)}
-                        className="p-1 text-neutral-400 hover:text-red-600 rounded transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center focus:outline-none"
-                        aria-label="Delete comment"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-                      </button>
-                    )}
-                  </div>
-
-                  <p className="text-xs text-neutral-800 dark:text-neutral-200 pl-8 whitespace-pre-line leading-relaxed">
-                    {comment.body}
-                  </p>
-                </div>
-              ))
+                      {me && (me.id === c.author.id || isAdmin) ? (
+                        <IconButton
+                          label={copy.comments.deleteAria}
+                          onClick={() => setDeleting(c.id)}
+                        >
+                          <Trash2 />
+                        </IconButton>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+                <LoadMore
+                  hasMore={Boolean(comments.hasNextPage)}
+                  isLoading={comments.isFetchingNextPage}
+                  onLoad={() => void comments.fetchNextPage()}
+                  total={items.length}
+                />
+              </>
             )}
-          </div>
+          </section>
+
+          <ConfirmDialog
+            isOpen={deleting !== null}
+            onClose={() => setDeleting(null)}
+            title={copy.comments.deleteTitle}
+            body={copy.comments.deleteBody}
+            confirmLabel={copy.common.delete}
+            danger
+            isLoading={deleteComment.isPending}
+            onConfirm={() =>
+              deleting && deleteComment.mutate(deleting, { onSuccess: () => setDeleting(null) })
+            }
+          />
+          <p className="sr-only">{pluralize(items.length, 'comment')}</p>
         </>
       )}
     </div>
   );
-};
+}

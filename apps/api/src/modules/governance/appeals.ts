@@ -6,6 +6,7 @@ import { withTransaction } from '../../db/tx.js';
 import { decodeCursor, encodeCursor } from '../../db/cursor.js';
 import { AppError } from '../../middleware/errors.js';
 import { lockOpenWave } from '../../scoring/waveLock.js';
+import { tierOfValue } from '../../scoring/tier.js';
 import { findEventByIdAndUser, insertAppeal, type AppealRow } from '../score/repo.js';
 import { assessPostInTransaction, assertNoConflictOfInterest } from './assessments.js';
 import {
@@ -31,22 +32,27 @@ export async function appealEvent(
     await tx.query('SELECT id FROM posts WHERE id = $1 FOR UPDATE', [target.rows[0].post_id]);
     const event = await findEventByIdAndUser(eventId, userId, tx);
     if (!event) throw new AppError(404, 'NOT_FOUND', 'Event not found');
+    // RUL-016 violations all map to the plan's 409 APPEAL_NOT_ALLOWED code (Section 1.7).
     if (!['MISINFO_POST', 'MISINFO_RESHARE', 'MISINFO_LIKE'].includes(event.kind)) {
-      throw new AppError(400, 'INVALID_APPEAL', 'Only negative reputation events can be appealed');
+      throw new AppError(
+        409,
+        'APPEAL_NOT_ALLOWED',
+        'Only negative reputation events can be appealed',
+      );
     }
     if (event.has_appeal)
       throw new AppError(409, 'ALREADY_EXISTS', 'An appeal already exists for this event');
     if (event.status === 'voided')
-      throw new AppError(400, 'INVALID_APPEAL', 'Cannot appeal a voided event');
+      throw new AppError(409, 'APPEAL_NOT_ALLOWED', 'Cannot appeal a voided event');
     const expiresAt = event.assessment_created_at.getTime() + config.APPEAL_WINDOW_DAYS * 86400000;
     if (Date.now() > expiresAt)
-      throw new AppError(409, 'APPEAL_WINDOW_EXPIRED', 'Appeal window has expired');
+      throw new AppError(409, 'APPEAL_NOT_ALLOWED', 'Appeal window has expired');
     const appeal = await insertAppeal(
       { eventId, assessmentId: event.assessment_id, appellantId: userId, reason: input.reason },
       tx,
     );
     const admins = await tx.query<{ id: string }>(
-      `SELECT id FROM users WHERE role = 'admin' AND status = 'active' AND email_verified_at IS NOT NULL`,
+      `SELECT id FROM users WHERE role = 'admin' AND status = 'active'`,
     );
     for (const admin of admins.rows) {
       await queueGovernanceNotification(tx, pending, {
@@ -65,11 +71,31 @@ export async function appealEvent(
 
 export async function listAdminAppeals(query: ListAdminAppealsQuery) {
   const cursor = query.cursor ? decodeCursor(query.cursor) : null;
-  const result = await getPool().query<AppealRow & { new_assessment_id: string | null }>(
-    `SELECT * FROM appeals
-     WHERE ($1::text IS NULL OR status = $1)
-       AND ($2::timestamptz IS NULL OR (date_trunc('milliseconds', created_at), id) < ($2, $3::uuid))
-     ORDER BY date_trunc('milliseconds', created_at) DESC, id DESC LIMIT $4`,
+  const result = await getPool().query<
+    AppealRow & {
+      new_assessment_id: string | null;
+      appellant_username: string;
+      appellant_display_name: string;
+      appellant_avatar_media_id: string | null;
+      appellant_q: string;
+      event_kind: string;
+      event_value: number;
+      event_status: string;
+      event_post_id: string;
+      post_body: string;
+    }
+  >(
+    `SELECT a.*, u.username AS appellant_username, u.display_name AS appellant_display_name,
+            u.avatar_media_id AS appellant_avatar_media_id, u.q::text AS appellant_q,
+            e.kind AS event_kind, e.value AS event_value, e.status AS event_status,
+            e.post_id AS event_post_id, p.body AS post_body
+     FROM appeals a
+     JOIN users u ON u.id = a.appellant_id
+     JOIN reputation_events e ON e.id = a.event_id
+     JOIN posts p ON p.id = e.post_id
+     WHERE ($1::text IS NULL OR a.status = $1)
+       AND ($2::timestamptz IS NULL OR (date_trunc('milliseconds', a.created_at), a.id) < ($2, $3::uuid))
+     ORDER BY date_trunc('milliseconds', a.created_at) DESC, a.id DESC LIMIT $4`,
     [query.status ?? null, cursor?.createdAt ?? null, cursor?.id ?? null, query.limit + 1],
   );
   const rows = result.rows.slice(0, query.limit);
@@ -80,6 +106,21 @@ export async function listAdminAppeals(query: ListAdminAppealsQuery) {
       eventId: row.event_id,
       assessmentId: row.assessment_id,
       appellantId: row.appellant_id,
+      appellant: {
+        id: row.appellant_id,
+        username: row.appellant_username,
+        displayName: row.appellant_display_name,
+        avatarUrl: row.appellant_avatar_media_id
+          ? `${config.S3_PUBLIC_BASE_URL}/${row.appellant_avatar_media_id}`
+          : null,
+        tier: tierOfValue(row.appellant_q),
+      },
+      event: {
+        kind: row.event_kind,
+        value: row.event_value,
+        status: row.event_status,
+        post: { id: row.event_post_id, excerpt: row.post_body.slice(0, 100) },
+      },
       reason: row.reason,
       status: row.status,
       resolutionNote: row.resolution_note,

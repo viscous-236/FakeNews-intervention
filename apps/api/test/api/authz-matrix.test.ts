@@ -1,12 +1,11 @@
 /**
  * apps/api/test/api/authz-matrix.test.ts (TASK-047, TEST-105)
  *
- * Authorization Matrix Integration Test for every Phase 5 endpoint across all 5 caller states:
+ * Authorization Matrix Integration Test for every Phase 5 endpoint across all 4 caller states:
  *   1. Unauthenticated (no session cookie)
- *   2. Unverified (authenticated, email_verified_at = NULL, status = active, role = user)
- *   3. Suspended (authenticated, email_verified_at != NULL, status = suspended, role = user)
- *   4. Verified (authenticated, email_verified_at != NULL, status = active, role = user)
- *   5. Admin (authenticated, email_verified_at != NULL, status = active, role = admin)
+ *   2. Suspended (authenticated, status = suspended, role = user)
+ *   3. Verified (authenticated, status = active, role = user)
+ *   4. Admin (authenticated, status = active, role = admin)
  *
  * Covers:
  *   - 6 Act Endpoints (requireActive):
@@ -19,7 +18,6 @@
  *   - 18 Auth Endpoints (requireAuth):
  *       POST   /api/v1/auth/logout
  *       GET    /api/v1/auth/me
- *       POST   /api/v1/auth/resend-verification
  *       POST   /api/v1/auth/change-password
  *       GET    /api/v1/auth/sessions
  *       DELETE /api/v1/auth/sessions/:id
@@ -38,7 +36,6 @@
  *   - 11 Pub Endpoints (Public):
  *       POST /api/v1/auth/register
  *       POST /api/v1/auth/login
- *       POST /api/v1/auth/verify-email
  *       POST /api/v1/auth/forgot-password
  *       POST /api/v1/auth/reset-password
  *       GET  /api/v1/users/:username
@@ -73,7 +70,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
   }
 
   // Common users for read/non-destructive tests
-  let unverifiedUserId: string;
   let suspendedUserId: string;
   let verifiedUserId: string;
   let adminUserId: string;
@@ -90,10 +86,11 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
     const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
     const pool = getTestPool();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    await pool.query(
-      `INSERT INTO sessions (user_id, token_hash, expires_at) VALUES ($1, $2, $3)`,
-      [userId, tokenHash, expiresAt],
-    );
+    await pool.query(`INSERT INTO sessions (user_id, token_hash, expires_at) VALUES ($1, $2, $3)`, [
+      userId,
+      tokenHash,
+      expiresAt,
+    ]);
     return `${config.SESSION_COOKIE_NAME}=${rawToken}`;
   }
 
@@ -107,56 +104,42 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
       .png()
       .toBuffer();
 
-    // 1. Unverified user
-    const unverifiedUser = await createUser({
-      username: 'u_unverified',
-      email: 'unverified@matrix.local',
-      password: 'password12345',
-      displayName: 'Unverified User',
-      emailVerified: false,
-    });
-    unverifiedUserId = unverifiedUser.id;
-
-    // 2. Suspended user
+    // 1. Suspended user
     const suspendedUser = await createUser({
       username: 'u_suspended',
       email: 'suspended@matrix.local',
       password: 'password12345',
       displayName: 'Suspended User',
-      emailVerified: true,
     });
     suspendedUserId = suspendedUser.id;
     const pool = getTestPool();
     await pool.query(`UPDATE users SET status = 'suspended' WHERE id = $1`, [suspendedUserId]);
 
-    // 3. Verified user
+    // 2. Verified user
     const verifiedUser = await createUser({
       username: 'u_verified',
       email: 'verified@matrix.local',
       password: 'password12345',
       displayName: 'Verified User',
-      emailVerified: true,
     });
     verifiedUserId = verifiedUser.id;
 
-    // 4. Admin user
+    // 3. Admin user
     const adminUser = await createUser({
       username: 'u_admin',
       email: 'admin@matrix.local',
       password: 'password12345',
       displayName: 'Admin User',
       role: 'admin',
-      emailVerified: true,
     });
     adminUserId = adminUser.id;
 
-    // 5. Public author and post for public endpoint tests
+    // 4. Public author and post for public endpoint tests
     const pubAuthor = await createUser({
       username: 'pub_author',
       email: 'pub_author@matrix.local',
       password: 'password12345',
       displayName: 'Public Author',
-      emailVerified: true,
     });
     publicAuthorId = pubAuthor.id;
     publicUsername = pubAuthor.username;
@@ -177,7 +160,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
   // =========================================================================
   // SECTION 1: Act Endpoints (requireActive)
   //   Unauthenticated -> 401 UNAUTHENTICATED
-  //   Unverified      -> 403 EMAIL_NOT_VERIFIED
   //   Suspended       -> 403 ACCOUNT_SUSPENDED
   //   Verified        -> Allowed (2xx)
   //   Admin           -> Allowed (2xx)
@@ -195,18 +177,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
           .send({ displayName: 'Hacker' });
         expect(res.status).toBe(401);
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
-      });
-
-      it('unverified -> 403 EMAIL_NOT_VERIFIED', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        const res = await request
-          .patch('/api/v1/users/me')
-          .set('Cookie', cookie)
-          .set('Origin', config.APP_ORIGIN)
-          .set('X-Forwarded-For', nextIp())
-          .send({ displayName: 'New Name' });
-        expect(res.status).toBe(403);
-        expect(res.body.error.code).toBe('EMAIL_NOT_VERIFIED');
       });
 
       it('suspended -> 403 ACCOUNT_SUSPENDED', async () => {
@@ -262,18 +232,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
           .send(validPostPayload);
         expect(res.status).toBe(401);
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
-      });
-
-      it('unverified -> 403 EMAIL_NOT_VERIFIED', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        const res = await request
-          .post('/api/v1/posts')
-          .set('Cookie', cookie)
-          .set('Origin', config.APP_ORIGIN)
-          .set('X-Forwarded-For', nextIp())
-          .send(validPostPayload);
-        expect(res.status).toBe(403);
-        expect(res.body.error.code).toBe('EMAIL_NOT_VERIFIED');
       });
 
       it('suspended -> 403 ACCOUNT_SUSPENDED', async () => {
@@ -349,18 +307,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
       });
 
-      it('unverified -> 403 EMAIL_NOT_VERIFIED', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        const res = await request
-          .patch(`/api/v1/posts/${verifiedPostId}`)
-          .set('Cookie', cookie)
-          .set('Origin', config.APP_ORIGIN)
-          .set('X-Forwarded-For', nextIp())
-          .send({ body: 'Updated body for unverified caller' });
-        expect(res.status).toBe(403);
-        expect(res.body.error.code).toBe('EMAIL_NOT_VERIFIED');
-      });
-
       it('suspended -> 403 ACCOUNT_SUSPENDED', async () => {
         const cookie = await createSessionCookie(suspendedUserId);
         const res = await request
@@ -409,17 +355,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
           .set('X-Forwarded-For', nextIp());
         expect(res.status).toBe(401);
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
-      });
-
-      it('unverified -> 403 EMAIL_NOT_VERIFIED', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        const res = await request
-          .delete(`/api/v1/posts/${publicPostId}`)
-          .set('Cookie', cookie)
-          .set('Origin', config.APP_ORIGIN)
-          .set('X-Forwarded-For', nextIp());
-        expect(res.status).toBe(403);
-        expect(res.body.error.code).toBe('EMAIL_NOT_VERIFIED');
       });
 
       it('suspended -> 403 ACCOUNT_SUSPENDED', async () => {
@@ -481,19 +416,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
           .attach('file', testPngBuffer, 'test.png');
         expect(res.status).toBe(401);
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
-      });
-
-      it('unverified -> 403 EMAIL_NOT_VERIFIED', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        const res = await request
-          .post('/api/v1/media')
-          .set('Cookie', cookie)
-          .set('Origin', config.APP_ORIGIN)
-          .set('X-Forwarded-For', nextIp())
-          .field('kind', 'avatar')
-          .attach('file', testPngBuffer, 'test.png');
-        expect(res.status).toBe(403);
-        expect(res.body.error.code).toBe('EMAIL_NOT_VERIFIED');
       });
 
       it('suspended -> 403 ACCOUNT_SUSPENDED', async () => {
@@ -608,18 +530,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
       });
 
-      it('unverified -> 403 EMAIL_NOT_VERIFIED', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        const res = await request
-          .post(`/api/v1/events/${verifiedEventId}/appeal`)
-          .set('Cookie', cookie)
-          .set('Origin', config.APP_ORIGIN)
-          .set('X-Forwarded-For', nextIp())
-          .send(appealPayload);
-        expect(res.status).toBe(403);
-        expect(res.body.error.code).toBe('EMAIL_NOT_VERIFIED');
-      });
-
       it('suspended -> 403 ACCOUNT_SUSPENDED', async () => {
         const cookie = await createSessionCookie(suspendedUserId);
         const res = await request
@@ -661,7 +571,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
   // =========================================================================
   // SECTION 2: Auth Endpoints (requireAuth)
   //   Unauthenticated -> 401 UNAUTHENTICATED
-  //   Unverified      -> Allowed (2xx)
   //   Suspended       -> Allowed (2xx)
   //   Verified        -> Allowed (2xx)
   //   Admin           -> Allowed (2xx)
@@ -678,16 +587,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
           .set('X-Forwarded-For', nextIp());
         expect(res.status).toBe(401);
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
-      });
-
-      it('unverified -> 204 No Content', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        const res = await request
-          .post('/api/v1/auth/logout')
-          .set('Cookie', cookie)
-          .set('Origin', config.APP_ORIGIN)
-          .set('X-Forwarded-For', nextIp());
-        expect(res.status).toBe(204);
       });
 
       it('suspended -> 204 No Content', async () => {
@@ -726,21 +625,9 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
     // -----------------------------------------------------------------------
     describe('GET /api/v1/auth/me', () => {
       it('unauthenticated -> 401 UNAUTHENTICATED', async () => {
-        const res = await request
-          .get('/api/v1/auth/me')
-          .set('X-Forwarded-For', nextIp());
+        const res = await request.get('/api/v1/auth/me').set('X-Forwarded-For', nextIp());
         expect(res.status).toBe(401);
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
-      });
-
-      it('unverified -> 200 OK', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        const res = await request
-          .get('/api/v1/auth/me')
-          .set('Cookie', cookie)
-          .set('X-Forwarded-For', nextIp());
-        expect(res.status).toBe(200);
-        expect(res.body.user.emailVerified).toBe(false);
       });
 
       it('suspended -> 200 OK', async () => {
@@ -760,7 +647,7 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
           .set('Cookie', cookie)
           .set('X-Forwarded-For', nextIp());
         expect(res.status).toBe(200);
-        expect(res.body.user.emailVerified).toBe(true);
+        expect(res.body.user.username).toBe('u_verified');
       });
 
       it('admin -> 200 OK', async () => {
@@ -775,59 +662,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
     });
 
     // -----------------------------------------------------------------------
-    // 9. POST /api/v1/auth/resend-verification
-    // -----------------------------------------------------------------------
-    describe('POST /api/v1/auth/resend-verification', () => {
-      it('unauthenticated -> 401 UNAUTHENTICATED', async () => {
-        const res = await request
-          .post('/api/v1/auth/resend-verification')
-          .set('Origin', config.APP_ORIGIN)
-          .set('X-Forwarded-For', nextIp());
-        expect(res.status).toBe(401);
-        expect(res.body.error.code).toBe('UNAUTHENTICATED');
-      });
-
-      it('unverified -> 204 No Content', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        const res = await request
-          .post('/api/v1/auth/resend-verification')
-          .set('Cookie', cookie)
-          .set('Origin', config.APP_ORIGIN)
-          .set('X-Forwarded-For', nextIp());
-        expect(res.status).toBe(204);
-      });
-
-      it('suspended -> 204 No Content', async () => {
-        const cookie = await createSessionCookie(suspendedUserId);
-        const res = await request
-          .post('/api/v1/auth/resend-verification')
-          .set('Cookie', cookie)
-          .set('Origin', config.APP_ORIGIN)
-          .set('X-Forwarded-For', nextIp());
-        expect(res.status).toBe(204);
-      });
-
-      it('verified -> 204 No Content', async () => {
-        const cookie = await createSessionCookie(verifiedUserId);
-        const res = await request
-          .post('/api/v1/auth/resend-verification')
-          .set('Cookie', cookie)
-          .set('Origin', config.APP_ORIGIN)
-          .set('X-Forwarded-For', nextIp());
-        expect(res.status).toBe(204);
-      });
-
-      it('admin -> 204 No Content', async () => {
-        const cookie = await createSessionCookie(adminUserId);
-        const res = await request
-          .post('/api/v1/auth/resend-verification')
-          .set('Cookie', cookie)
-          .set('Origin', config.APP_ORIGIN)
-          .set('X-Forwarded-For', nextIp());
-        expect(res.status).toBe(204);
-      });
-    });
-
     // -----------------------------------------------------------------------
     // 10. POST /api/v1/auth/change-password
     // -----------------------------------------------------------------------
@@ -842,31 +676,12 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
       });
 
-      it('unverified -> 204 No Content', async () => {
-        const u = await createUser({
-          username: 'chpass_unver',
-          email: 'chpass_unver@matrix.local',
-          password: 'password12345',
-          displayName: 'Change Pass Unver',
-          emailVerified: false,
-        });
-        const cookie = await createSessionCookie(u.id);
-        const res = await request
-          .post('/api/v1/auth/change-password')
-          .set('Cookie', cookie)
-          .set('Origin', config.APP_ORIGIN)
-          .set('X-Forwarded-For', nextIp())
-          .send({ currentPassword: 'password12345', newPassword: 'newpassword123' });
-        expect(res.status).toBe(204);
-      });
-
       it('suspended -> 204 No Content', async () => {
         const u = await createUser({
           username: 'chpass_susp',
           email: 'chpass_susp@matrix.local',
           password: 'password12345',
           displayName: 'Change Pass Susp',
-          emailVerified: true,
         });
         const pool = getTestPool();
         await pool.query(`UPDATE users SET status = 'suspended' WHERE id = $1`, [u.id]);
@@ -886,7 +701,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
           email: 'chpass_ver@matrix.local',
           password: 'password12345',
           displayName: 'Change Pass Ver',
-          emailVerified: true,
         });
         const cookie = await createSessionCookie(u.id);
         const res = await request
@@ -905,7 +719,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
           password: 'password12345',
           displayName: 'Change Pass Admin',
           role: 'admin',
-          emailVerified: true,
         });
         const cookie = await createSessionCookie(u.id);
         const res = await request
@@ -923,21 +736,9 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
     // -----------------------------------------------------------------------
     describe('GET /api/v1/auth/sessions', () => {
       it('unauthenticated -> 401 UNAUTHENTICATED', async () => {
-        const res = await request
-          .get('/api/v1/auth/sessions')
-          .set('X-Forwarded-For', nextIp());
+        const res = await request.get('/api/v1/auth/sessions').set('X-Forwarded-For', nextIp());
         expect(res.status).toBe(401);
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
-      });
-
-      it('unverified -> 200 OK', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        const res = await request
-          .get('/api/v1/auth/sessions')
-          .set('Cookie', cookie)
-          .set('X-Forwarded-For', nextIp());
-        expect(res.status).toBe(200);
-        expect(Array.isArray(res.body)).toBe(true);
       });
 
       it('suspended -> 200 OK', async () => {
@@ -997,17 +798,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
       });
 
-      it('unverified -> 204 No Content (own session)', async () => {
-        const sessionId = await createSecondarySession(unverifiedUserId);
-        const cookie = await createSessionCookie(unverifiedUserId);
-        const res = await request
-          .delete(`/api/v1/auth/sessions/${sessionId}`)
-          .set('Cookie', cookie)
-          .set('Origin', config.APP_ORIGIN)
-          .set('X-Forwarded-For', nextIp());
-        expect(res.status).toBe(204);
-      });
-
       it('suspended -> 204 No Content (own session)', async () => {
         const sessionId = await createSecondarySession(suspendedUserId);
         const cookie = await createSessionCookie(suspendedUserId);
@@ -1056,31 +846,12 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
       });
 
-      it('unverified -> 204 No Content', async () => {
-        const u = await createUser({
-          username: 'del_unverified',
-          email: 'del_unverified@matrix.local',
-          password: 'password12345',
-          displayName: 'Del Unverified',
-          emailVerified: false,
-        });
-        const cookie = await createSessionCookie(u.id);
-        const res = await request
-          .delete('/api/v1/users/me')
-          .set('Cookie', cookie)
-          .set('Origin', config.APP_ORIGIN)
-          .set('X-Forwarded-For', nextIp())
-          .send({ password: 'password12345' });
-        expect(res.status).toBe(204);
-      });
-
       it('suspended -> 204 No Content', async () => {
         const u = await createUser({
           username: 'del_suspended',
           email: 'del_suspended@matrix.local',
           password: 'password12345',
           displayName: 'Del Suspended',
-          emailVerified: true,
         });
         const pool = getTestPool();
         await pool.query(`UPDATE users SET status = 'suspended' WHERE id = $1`, [u.id]);
@@ -1100,7 +871,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
           email: 'del_verified@matrix.local',
           password: 'password12345',
           displayName: 'Del Verified',
-          emailVerified: true,
         });
         const cookie = await createSessionCookie(u.id);
         const res = await request
@@ -1119,7 +889,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
           password: 'password12345',
           displayName: 'Del Admin',
           role: 'admin',
-          emailVerified: true,
         });
         const cookie = await createSessionCookie(u.id);
         const res = await request
@@ -1137,21 +906,9 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
     // -----------------------------------------------------------------------
     describe('GET /api/v1/users/me/export', () => {
       it('unauthenticated -> 401 UNAUTHENTICATED', async () => {
-        const res = await request
-          .get('/api/v1/users/me/export')
-          .set('X-Forwarded-For', nextIp());
+        const res = await request.get('/api/v1/users/me/export').set('X-Forwarded-For', nextIp());
         expect(res.status).toBe(401);
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
-      });
-
-      it('unverified -> 200 OK', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        const res = await request
-          .get('/api/v1/users/me/export')
-          .set('Cookie', cookie)
-          .set('X-Forwarded-For', nextIp());
-        expect(res.status).toBe(200);
-        expect(res.body.profile).toBeDefined();
       });
 
       it('suspended -> 200 OK', async () => {
@@ -1190,21 +947,9 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
     // -----------------------------------------------------------------------
     describe('GET /api/v1/feed/following', () => {
       it('unauthenticated -> 401 UNAUTHENTICATED', async () => {
-        const res = await request
-          .get('/api/v1/feed/following')
-          .set('X-Forwarded-For', nextIp());
+        const res = await request.get('/api/v1/feed/following').set('X-Forwarded-For', nextIp());
         expect(res.status).toBe(401);
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
-      });
-
-      it('unverified -> 200 OK', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        const res = await request
-          .get('/api/v1/feed/following')
-          .set('Cookie', cookie)
-          .set('X-Forwarded-For', nextIp());
-        expect(res.status).toBe(200);
-        expect(Array.isArray(res.body.items)).toBe(true);
       });
 
       it('suspended -> 200 OK', async () => {
@@ -1243,22 +988,9 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
     // -----------------------------------------------------------------------
     describe('GET /api/v1/me/score', () => {
       it('unauthenticated -> 401 UNAUTHENTICATED', async () => {
-        const res = await request
-          .get('/api/v1/me/score')
-          .set('X-Forwarded-For', nextIp());
+        const res = await request.get('/api/v1/me/score').set('X-Forwarded-For', nextIp());
         expect(res.status).toBe(401);
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
-      });
-
-      it('unverified -> 200 OK', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        const res = await request
-          .get('/api/v1/me/score')
-          .set('Cookie', cookie)
-          .set('X-Forwarded-For', nextIp());
-        expect(res.status).toBe(200);
-        expect(res.body.q).toBeDefined();
-        expect(res.body.currentWave).toBeDefined();
       });
 
       it('suspended -> 200 OK', async () => {
@@ -1297,21 +1029,9 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
     // -----------------------------------------------------------------------
     describe('GET /api/v1/me/score/history', () => {
       it('unauthenticated -> 401 UNAUTHENTICATED', async () => {
-        const res = await request
-          .get('/api/v1/me/score/history')
-          .set('X-Forwarded-For', nextIp());
+        const res = await request.get('/api/v1/me/score/history').set('X-Forwarded-For', nextIp());
         expect(res.status).toBe(401);
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
-      });
-
-      it('unverified -> 200 OK', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        const res = await request
-          .get('/api/v1/me/score/history')
-          .set('Cookie', cookie)
-          .set('X-Forwarded-For', nextIp());
-        expect(res.status).toBe(200);
-        expect(Array.isArray(res.body.items)).toBe(true);
       });
 
       it('suspended -> 200 OK', async () => {
@@ -1374,7 +1094,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
               [uid, wave888Id],
             );
           };
-          await insertRow(unverifiedUserId);
           await insertRow(suspendedUserId);
           await insertRow(verifiedUserId);
           await insertRow(adminUserId);
@@ -1393,16 +1112,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
           .set('X-Forwarded-For', nextIp());
         expect(res.status).toBe(401);
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
-      });
-
-      it('unverified -> 200 OK', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        const res = await request
-          .get('/api/v1/me/score/history/888')
-          .set('Cookie', cookie)
-          .set('X-Forwarded-For', nextIp());
-        expect(res.status).toBe(200);
-        expect(res.body.row.waveNumber).toBe(888);
       });
 
       it('suspended -> 200 OK', async () => {
@@ -1441,21 +1150,9 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
     // -----------------------------------------------------------------------
     describe('GET /api/v1/me/events', () => {
       it('unauthenticated -> 401 UNAUTHENTICATED', async () => {
-        const res = await request
-          .get('/api/v1/me/events')
-          .set('X-Forwarded-For', nextIp());
+        const res = await request.get('/api/v1/me/events').set('X-Forwarded-For', nextIp());
         expect(res.status).toBe(401);
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
-      });
-
-      it('unverified -> 200 OK', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        const res = await request
-          .get('/api/v1/me/events')
-          .set('Cookie', cookie)
-          .set('X-Forwarded-For', nextIp());
-        expect(res.status).toBe(200);
-        expect(Array.isArray(res.body.items)).toBe(true);
       });
 
       it('suspended -> 200 OK', async () => {
@@ -1494,21 +1191,9 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
     // -----------------------------------------------------------------------
     describe('GET /api/v1/me/appeals', () => {
       it('unauthenticated -> 401 UNAUTHENTICATED', async () => {
-        const res = await request
-          .get('/api/v1/me/appeals')
-          .set('X-Forwarded-For', nextIp());
+        const res = await request.get('/api/v1/me/appeals').set('X-Forwarded-For', nextIp());
         expect(res.status).toBe(401);
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
-      });
-
-      it('unverified -> 200 OK', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        const res = await request
-          .get('/api/v1/me/appeals')
-          .set('Cookie', cookie)
-          .set('X-Forwarded-For', nextIp());
-        expect(res.status).toBe(200);
-        expect(Array.isArray(res.body.items)).toBe(true);
       });
 
       it('suspended -> 200 OK', async () => {
@@ -1547,21 +1232,9 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
     // -----------------------------------------------------------------------
     describe('GET /api/v1/notifications', () => {
       it('unauthenticated -> 401 UNAUTHENTICATED', async () => {
-        const res = await request
-          .get('/api/v1/notifications')
-          .set('X-Forwarded-For', nextIp());
+        const res = await request.get('/api/v1/notifications').set('X-Forwarded-For', nextIp());
         expect(res.status).toBe(401);
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
-      });
-
-      it('unverified -> 200 OK', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        const res = await request
-          .get('/api/v1/notifications')
-          .set('Cookie', cookie)
-          .set('X-Forwarded-For', nextIp());
-        expect(res.status).toBe(200);
-        expect(Array.isArray(res.body.items)).toBe(true);
       });
 
       it('suspended -> 200 OK', async () => {
@@ -1607,16 +1280,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
       });
 
-      it('unverified -> 200 OK', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        const res = await request
-          .get('/api/v1/notifications/unread-count')
-          .set('Cookie', cookie)
-          .set('X-Forwarded-For', nextIp());
-        expect(res.status).toBe(200);
-        expect(typeof res.body.count).toBe('number');
-      });
-
       it('suspended -> 200 OK', async () => {
         const cookie = await createSessionCookie(suspendedUserId);
         const res = await request
@@ -1660,17 +1323,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
           .send({});
         expect(res.status).toBe(401);
         expect(res.body.error.code).toBe('UNAUTHENTICATED');
-      });
-
-      it('unverified -> 204 No Content', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        const res = await request
-          .post('/api/v1/notifications/read')
-          .set('Cookie', cookie)
-          .set('Origin', config.APP_ORIGIN)
-          .set('X-Forwarded-For', nextIp())
-          .send({});
-        expect(res.status).toBe(204);
       });
 
       it('suspended -> 204 No Content', async () => {
@@ -1768,11 +1420,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
         });
       }
 
-      it('unverified -> 200 text/event-stream', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        await testSseAllowed(cookie);
-      });
-
       it('suspended -> 200 text/event-stream', async () => {
         const cookie = await createSessionCookie(suspendedUserId);
         await testSseAllowed(cookie);
@@ -1793,7 +1440,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
   // =========================================================================
   // SECTION 3: Pub Endpoints (Public)
   //   Unauthenticated -> Allowed (not 401/403)
-  //   Unverified      -> Allowed (not 401/403)
   //   Suspended       -> Allowed (not 401/403)
   //   Verified        -> Allowed (not 401/403)
   //   Admin           -> Allowed (not 401/403)
@@ -1824,11 +1470,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
 
       it('unauthenticated -> 201 CREATED', async () => {
         await testRegister();
-      });
-
-      it('unverified -> 201 CREATED', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        await testRegister(cookie);
       });
 
       it('suspended -> 201 CREATED', async () => {
@@ -1870,11 +1511,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
         await testLogin();
       });
 
-      it('unverified -> 200 OK', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        await testLogin(cookie);
-      });
-
       it('suspended -> 200 OK', async () => {
         const cookie = await createSessionCookie(suspendedUserId);
         await testLogin(cookie);
@@ -1888,50 +1524,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
       it('admin -> 200 OK', async () => {
         const cookie = await createSessionCookie(adminUserId);
         await testLogin(cookie);
-      });
-    });
-
-    // -----------------------------------------------------------------------
-    // 27. POST /api/v1/auth/verify-email
-    // -----------------------------------------------------------------------
-    describe('POST /api/v1/auth/verify-email', () => {
-      async function testVerifyEmail(cookie?: string): Promise<void> {
-        const reqBuilder = request
-          .post('/api/v1/auth/verify-email')
-          .set('Origin', config.APP_ORIGIN)
-          .set('X-Forwarded-For', nextIp());
-        if (cookie) reqBuilder.set('Cookie', cookie);
-
-        const res = await reqBuilder.send({
-          token: crypto.randomBytes(32).toString('base64url'),
-        });
-        // Non-existent token -> 400 VALIDATION_ERROR, neither 401 nor 403
-        expect(res.status).toBe(400);
-        expect(res.body.error.code).toBe('VALIDATION_ERROR');
-      }
-
-      it('unauthenticated -> 400 VALIDATION_ERROR', async () => {
-        await testVerifyEmail();
-      });
-
-      it('unverified -> 400 VALIDATION_ERROR', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        await testVerifyEmail(cookie);
-      });
-
-      it('suspended -> 400 VALIDATION_ERROR', async () => {
-        const cookie = await createSessionCookie(suspendedUserId);
-        await testVerifyEmail(cookie);
-      });
-
-      it('verified -> 400 VALIDATION_ERROR', async () => {
-        const cookie = await createSessionCookie(verifiedUserId);
-        await testVerifyEmail(cookie);
-      });
-
-      it('admin -> 400 VALIDATION_ERROR', async () => {
-        const cookie = await createSessionCookie(adminUserId);
-        await testVerifyEmail(cookie);
       });
     });
 
@@ -1955,11 +1547,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
 
       it('unauthenticated -> 204 No Content', async () => {
         await testForgotPassword();
-      });
-
-      it('unverified -> 204 No Content', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        await testForgotPassword(cookie);
       });
 
       it('suspended -> 204 No Content', async () => {
@@ -2002,11 +1589,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
         await testResetPassword();
       });
 
-      it('unverified -> 400 VALIDATION_ERROR', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        await testResetPassword(cookie);
-      });
-
       it('suspended -> 400 VALIDATION_ERROR', async () => {
         const cookie = await createSessionCookie(suspendedUserId);
         await testResetPassword(cookie);
@@ -2040,11 +1622,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
 
       it('unauthenticated -> 200 OK', async () => {
         await testGetUser();
-      });
-
-      it('unverified -> 200 OK', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        await testGetUser(cookie);
       });
 
       it('suspended -> 200 OK', async () => {
@@ -2082,11 +1659,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
         await testGetUserPosts();
       });
 
-      it('unverified -> 200 OK', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        await testGetUserPosts(cookie);
-      });
-
       it('suspended -> 200 OK', async () => {
         const cookie = await createSessionCookie(suspendedUserId);
         await testGetUserPosts(cookie);
@@ -2122,11 +1694,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
         await testGetPost();
       });
 
-      it('unverified -> 200 OK', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        await testGetPost(cookie);
-      });
-
       it('suspended -> 200 OK', async () => {
         const cookie = await createSessionCookie(suspendedUserId);
         await testGetPost(cookie);
@@ -2148,9 +1715,7 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
     // -----------------------------------------------------------------------
     describe('GET /api/v1/feed/global', () => {
       async function testGetGlobalFeed(cookie?: string): Promise<void> {
-        const reqBuilder = request
-          .get('/api/v1/feed/global')
-          .set('X-Forwarded-For', nextIp());
+        const reqBuilder = request.get('/api/v1/feed/global').set('X-Forwarded-For', nextIp());
         if (cookie) reqBuilder.set('Cookie', cookie);
 
         const res = await reqBuilder;
@@ -2160,11 +1725,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
 
       it('unauthenticated -> 200 OK', async () => {
         await testGetGlobalFeed();
-      });
-
-      it('unverified -> 200 OK', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        await testGetGlobalFeed(cookie);
       });
 
       it('suspended -> 200 OK', async () => {
@@ -2202,11 +1762,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
         await testGetUserScore();
       });
 
-      it('unverified -> 200 OK', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        await testGetUserScore(cookie);
-      });
-
       it('suspended -> 200 OK', async () => {
         const cookie = await createSessionCookie(suspendedUserId);
         await testGetUserScore(cookie);
@@ -2228,9 +1783,7 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
     // -----------------------------------------------------------------------
     describe('GET /api/v1/waves/current', () => {
       async function testGetCurrentWave(cookie?: string): Promise<void> {
-        const reqBuilder = request
-          .get('/api/v1/waves/current')
-          .set('X-Forwarded-For', nextIp());
+        const reqBuilder = request.get('/api/v1/waves/current').set('X-Forwarded-For', nextIp());
         if (cookie) reqBuilder.set('Cookie', cookie);
 
         const res = await reqBuilder;
@@ -2240,11 +1793,6 @@ describe('Authorization Matrix (TASK-047, TEST-105)', () => {
 
       it('unauthenticated -> 200 OK', async () => {
         await testGetCurrentWave();
-      });
-
-      it('unverified -> 200 OK', async () => {
-        const cookie = await createSessionCookie(unverifiedUserId);
-        await testGetCurrentWave(cookie);
       });
 
       it('suspended -> 200 OK', async () => {

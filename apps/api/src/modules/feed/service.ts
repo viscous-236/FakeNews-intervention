@@ -34,9 +34,7 @@ export async function getGlobalFeed(
   const hasMore = rows.length > options.limit;
   const itemsToReturn = hasMore ? rows.slice(0, options.limit) : rows;
 
-  const items = await Promise.all(
-    itemsToReturn.map((row) => serializePost(row, viewer)),
-  );
+  const items = await Promise.all(itemsToReturn.map((row) => serializePost(row, viewer)));
 
   let nextCursor: string | null = null;
   if (hasMore && itemsToReturn.length > 0) {
@@ -71,9 +69,7 @@ export async function getFollowingFeed(
   const hasMore = rows.length > options.limit;
   const itemsToReturn = hasMore ? rows.slice(0, options.limit) : rows;
 
-  const items = await Promise.all(
-    itemsToReturn.map((row) => serializePost(row, viewer)),
-  );
+  const items = await Promise.all(itemsToReturn.map((row) => serializePost(row, viewer)));
 
   let nextCursor: string | null = null;
   if (hasMore && itemsToReturn.length > 0) {

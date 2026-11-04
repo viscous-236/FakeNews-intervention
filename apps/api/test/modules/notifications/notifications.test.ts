@@ -34,7 +34,6 @@ describe('Notifications Module & SSE (TASK-042, RUL-025, REQ-041, REQ-044)', () 
       email: 'recipient@example.com',
       password: 'password12345',
       displayName: 'Recipient User',
-      emailVerified: true,
     });
     recipientId = recipient.id;
 
@@ -43,7 +42,6 @@ describe('Notifications Module & SSE (TASK-042, RUL-025, REQ-041, REQ-044)', () 
       email: 'actor@example.com',
       password: 'password12345',
       displayName: 'Actor User',
-      emailVerified: true,
     });
     actorId = actor.id;
 
@@ -99,9 +97,7 @@ describe('Notifications Module & SSE (TASK-042, RUL-025, REQ-041, REQ-044)', () 
     expect(countRes.body.count).toBe(1);
 
     // List notifications
-    const listRes = await request
-      .get('/api/v1/notifications')
-      .set('Cookie', recipientCookie);
+    const listRes = await request.get('/api/v1/notifications').set('Cookie', recipientCookie);
     expect(listRes.status).toBe(200);
     expect(listRes.body.items.length).toBe(1);
     expect(listRes.body.items[0].id).toBe(notif!.id);

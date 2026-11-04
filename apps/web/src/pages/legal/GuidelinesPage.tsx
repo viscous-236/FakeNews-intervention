@@ -1,119 +1,131 @@
 import React from 'react';
 import { copy } from '../../copy';
-import { BookOpen, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import { LegalShell } from './LegalShell';
 
-export const GuidelinesPage: React.FC = () => {
+export function GuidelinesPage(): React.ReactElement {
   return (
-    <article className="max-w-3xl mx-auto bg-white dark:bg-neutral-800 rounded-2xl border border-neutral-200 dark:border-neutral-700 p-8 shadow-sm space-y-6 text-sm text-neutral-800 dark:text-neutral-200 leading-relaxed">
-      <div className="border-b border-neutral-200 dark:border-neutral-700 pb-4">
-        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
-          <BookOpen className="w-6 h-6 text-primary-600 dark:text-primary-400" aria-hidden="true" />
-          <span>{copy.legal.guidelinesTitle}</span>
-        </h1>
-        <p className="mt-1 text-xs text-neutral-500">
-          {copy.legal.guidelinesDescription}
-        </p>
-      </div>
-
-      <section className="space-y-3">
-        <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
-          1. Mathematical Score Updates (Equation 2)
-        </h2>
+    <LegalShell
+      title={copy.legal.guidelines}
+      intro="This platform rewards accurate posts and penalizes misinformation with a transparent, wave-based score. Here is exactly how posts, shares, likes, reports, retractions and waves affect that score."
+    >
+      <section>
+        <h2>The score</h2>
         <p>
-          Credibility reputation is quantified by score $Q$. Scores do not change instantaneously on every like or post; rather, interactions are accumulated into periodic <strong>reputation waves</strong>. Upon finalization of wave $w$, score updates according to:
+          Every member has a credibility score Q that starts at 0, and a sensitivity σ between 0 and
+          1 that is fixed when the account is created and never changes. Interactions do not move
+          the score immediately. They create events that are counted when an administrator finalizes
+          the current wave, using the formula from the paper this platform implements:
         </p>
-        <div className="bg-neutral-900 text-neutral-100 rounded-xl p-4 font-mono text-center text-sm font-bold">
-          Q(w + 1) = Q(w) + σ × R(w)
-        </div>
-        <p className="text-xs text-neutral-500">
-          Where R(w) = n⁺(w) - n⁻(w) + adjustments, and σ represents your fixed personal responsiveness parameter (0 &lt; σ ≤ 1).
+        <p>
+          <code>Q(w+1) = Q(w) + σ × R(w)</code>, where{' '}
+          <code>R(w) = n⁺(w) − n⁻(w) + adjustments</code>.
+        </p>
+        <p>
+          n⁺ counts positive events and n⁻ counts negative events in the wave. Adjustments are
+          reversals created when an earlier verdict is corrected. Nothing else feeds the score: not
+          followers, not engagement, not the publisher’s own reputation.
         </p>
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
-          2. The Seven Reputation Event Kinds (v2.0 Specification)
-        </h2>
-        <div className="space-y-2 text-xs">
-          <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-850 flex items-start gap-2.5">
-            <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0 mt-0.5" aria-hidden="true" />
-            <div>
-              <strong>RESPONSIBLE_POST (+1):</strong> Awarded when a post you authored is reviewed and verified as true by independent fact-checkers.
-            </div>
-          </div>
-
-          <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-850 flex items-start gap-2.5">
-            <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0 mt-0.5" aria-hidden="true" />
-            <div>
-              <strong>RESPONSIBLE_RESHARE (+1):</strong> Awarded when you share a verified truthful post, amplifying reliable claims across the network.
-            </div>
-          </div>
-
-          <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-850 flex items-start gap-2.5">
-            <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0 mt-0.5" aria-hidden="true" />
-            <div>
-              <strong>VALID_REPORT (+1):</strong> Awarded when you report a post that fact-checkers subsequently determine to be false or deceptive.
-            </div>
-          </div>
-
-          <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-850 flex items-start gap-2.5">
-            <XCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
-            <div>
-              <strong>MISINFO_POST (-1):</strong> Applied when a claim you published is fact-checked and confirmed false.
-            </div>
-          </div>
-
-          <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-850 flex items-start gap-2.5">
-            <XCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
-            <div>
-              <strong>MISINFO_RESHARE (-1):</strong> Applied when you amplify and distribute a post verified as false.
-            </div>
-          </div>
-
-          <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-850 flex items-start gap-2.5">
-            <XCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
-            <div>
-              <strong>MISINFO_LIKE (-1):</strong> Applied when you endorse or like a post that fact-checkers verify as false.
-            </div>
-          </div>
-
-          <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-850 flex items-start gap-2.5">
-            <AlertTriangle className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" aria-hidden="true" />
-            <div>
-              <strong>REVERSAL (+1 / -1):</strong> Correction event created when an appeal is overturned or an assessment is corrected upon higher review.
-            </div>
-          </div>
-        </div>
+      <section>
+        <h2>Who decides what is true</h2>
+        <p>
+          An automated check runs on every post and sorts it into a band: likely real, uncertain or
+          likely fake. That check only decides what human reviewers look at first. It never creates
+          a label that says a post is false and never changes a score. Only a reviewer’s assessment
+          does, with a written rationale you can read on the post and in your event history.
+        </p>
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
-          3. Good-Faith Retractions and Void Reasons
-        </h2>
-        <p>
-          We incentivize honest discourse and timely course corrections. An event may transition to <code className="font-mono text-xs bg-neutral-100 dark:bg-neutral-700 px-1 py-0.5 rounded">voided</code> status for one of three reasons:
-        </p>
-        <ul className="list-disc list-inside space-y-1.5 text-xs pl-2">
+      <section>
+        <h2>The seven events</h2>
+        <ul>
           <li>
-            <strong>interaction_retracted:</strong> If you un-like or retract a reshare before the active wave finalizes, the pending penalty is annulled and will never be entered into the ledger.
+            Authored verified post (+1): a post you wrote was assessed as true, by a reviewer or by
+            the automatic low-risk rule.
           </li>
           <li>
-            <strong>cap_exceeded:</strong> Safeguard capping maximum positive rewards per user in a single wave (preventing reward farming).
+            Shared verified post (+1): you shared a post that a reviewer assessed as true. At most 5
+            count per wave.
           </li>
           <li>
-            <strong>assessment_superseded:</strong> If new evidence causes fact-checkers to update or overturn an earlier verdict.
+            Reported false post (+1): you reported a post before a reviewer assessed it as false. At
+            most 5 count per wave.
+          </li>
+          <li>
+            Authored false post (−1): a post you wrote was assessed as false. The penalty is the
+            same whether 0 or 10,000 people shared it.
+          </li>
+          <li>Shared false post (−1): you shared a post that was assessed as false.</li>
+          <li>Liked false post (−1): you liked a post that was assessed as false.</li>
+          <li>
+            Reversal (+1 or −1): a correction that cancels an event already counted in a closed wave
+            when the verdict changes.
           </li>
         </ul>
+        <p>Comments, follows, direct messages and blocks never create events.</p>
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
-          4. Comments Immunity (DEC-006)
-        </h2>
+      <section>
+        <h2>Changing your mind</h2>
         <p>
-          Comments on posts exist to foster constructive criticism, debate, and context sharing. Comments are strictly exempt from automated and manual reputation scoring events to encourage open inquiry without fear of score penalties.
+          If you remove a like or retract a share before the wave closes, the pending event is
+          voided and never counted. Once a wave has been finalized, the counted event and its ledger
+          row are permanent. Sharing again under the same verdict reactivates the voided event
+          instead of creating a second one.
+        </p>
+        <p>
+          You are protected when you act in good faith: if you shared or liked a post while a
+          reviewer had marked it true, and that verdict is later overturned, you are not penalized
+          for that interaction.
         </p>
       </section>
-    </article>
+
+      <section>
+        <h2>Labels and tiers</h2>
+        <ul>
+          <li>“{copy.postLabel.fact_checked_true}”: a reviewer assessed the post as true.</li>
+          <li>“{copy.postLabel.fact_checked_false}”: a reviewer assessed the post as false.</li>
+          <li>
+            “{copy.postLabel.unverifiable}”: a reviewer could not verify the post. No events are
+            created.
+          </li>
+          <li>
+            “{copy.postLabel.auto_flagged}”: the automated check flagged the post for review. Not a
+            verdict.
+          </li>
+        </ul>
+        <p>
+          Your tier is read from your score: trusted at or above the trusted threshold, low at or
+          below the low threshold, neutral in between. Sharing a flagged or false post, or a post by
+          a low-tier author, asks you to confirm first. Feeds stay strictly chronological; no post
+          is ranked up or down by score.
+        </p>
+      </section>
+
+      <section>
+        <h2>Appeals</h2>
+        <p>
+          Any negative event can be appealed within the appeal window. While the appeal is open, the
+          event is held out of the wave. A different administrator resolves it: upheld returns the
+          event to the open wave; overturned creates a corrected assessment and, for events already
+          counted, a reversal.
+        </p>
+      </section>
+
+      <section>
+        <h2>Conduct</h2>
+        <ul>
+          <li>
+            Do not post fabricated claims or present rumours as fact. Cite a source when you can.
+          </li>
+          <li>Do not coordinate shares, likes or reports to game the score.</li>
+          <li>
+            Do not harass other members. Harassment reports go to reviewers like any other report.
+          </li>
+          <li>Repeated verified misinformation lowers your tier and may lead to suspension.</li>
+        </ul>
+      </section>
+    </LegalShell>
   );
-};
+}

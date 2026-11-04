@@ -36,3 +36,7 @@ process.env['EMAIL_FROM'] ??= 'noreply@example.com';
 
 // Observability (not required in test)
 process.env['METRICS_TOKEN'] ??= 'test-metrics-token';
+
+// Abuse defence — the suite fires thousands of requests from one IP, so the
+// global per-IP ceiling is raised; per-route limits keep their plan values.
+process.env['GLOBAL_RATE_LIMIT_PER_MINUTE'] ??= '1000000';

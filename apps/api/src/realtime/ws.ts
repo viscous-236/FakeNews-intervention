@@ -14,9 +14,7 @@ interface SocketUser {
 }
 
 function rejectUpgrade(socket: Duplex, status: number, message: string): void {
-  socket.write(
-    `HTTP/1.1 ${status} ${message}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`,
-  );
+  socket.write(`HTTP/1.1 ${status} ${message}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
   socket.destroy();
 }
 
@@ -41,9 +39,8 @@ async function authenticateUpgrade(request: IncomingMessage): Promise<SocketUser
       WHERE s.token_hash = $1
         AND s.expires_at > now()
         AND u.status = 'active'
-        AND u.deleted_at IS NULL
-        AND ($2::boolean = false OR u.email_verified_at IS NOT NULL)`,
-    [tokenHash, config.REQUIRE_EMAIL_VERIFICATION],
+        AND u.deleted_at IS NULL`,
+    [tokenHash],
   );
   return result.rows[0] ?? null;
 }

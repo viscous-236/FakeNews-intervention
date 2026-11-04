@@ -1,55 +1,71 @@
 import React from 'react';
 import { copy } from '../../copy';
-import { Scale } from 'lucide-react';
+import { LegalShell } from './LegalShell';
 
-export const TermsPage: React.FC = () => {
+export function TermsPage(): React.ReactElement {
   return (
-    <article className="max-w-3xl mx-auto bg-white dark:bg-neutral-800 rounded-2xl border border-neutral-200 dark:border-neutral-700 p-8 shadow-sm space-y-6 text-sm text-neutral-800 dark:text-neutral-200 leading-relaxed">
-      <div className="border-b border-neutral-200 dark:border-neutral-700 pb-4">
-        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
-          <Scale className="w-6 h-6 text-primary-600 dark:text-primary-400" aria-hidden="true" />
-          <span>{copy.legal.termsTitle}</span>
-        </h1>
-        <p className="mt-1 text-xs text-neutral-500">
-          {copy.legal.termsDescription}
-        </p>
-      </div>
+    <LegalShell
+      title={copy.legal.terms}
+      intro="By using this platform you accept transparent reputation accounting, human fact-checking of your posts, and the rules below."
+    >
+      <section>
+        <h2>Accounts</h2>
+        <ul>
+          <li>You must verify your email before you can post, comment, like or share.</li>
+          <li>One person, one account. Accounts created to evade a penalty may be suspended.</li>
+          <li>
+            You are responsible for what is posted from your account and for keeping your password
+            private.
+          </li>
+        </ul>
+      </section>
 
-      <section className="space-y-2">
-        <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
-          1. Algorithmic Credibility Architecture
-        </h2>
+      <section>
+        <h2>Reputation</h2>
         <p>
-          By creating an account or participating in discussions on this platform, you acknowledge and agree that your public interactions—specifically authored posts, shared posts, likes, and moderation reports—are subject to transparent algorithmic reputation accounting. Scores are calculated deterministically through periodic reputation waves governed by mathematical proofs.
+          Your public interactions create reputation events that are counted when a wave is
+          finalized, as described in the{' '}
+          <a href="/legal/guidelines" className="text-accent hover:underline">
+            guidelines
+          </a>
+          . Scores are computed only from your own events and your fixed sensitivity. Ledger rows,
+          once written, are never changed; corrections are recorded as new events.
         </p>
       </section>
 
-      <section className="space-y-2">
-        <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
-          2. Human-in-the-Loop Fact-Checking
-        </h2>
+      <section>
+        <h2>Fact-checking</h2>
         <p>
-          Automated machine learning models (specifically fine-tuned RoBERTa transformer classifiers) screen content for review prioritization only. No automated score penalties or public fact-check labels are ever applied without independent human verification.
+          Automated checks only prioritize review. Labels and penalties come from administrators,
+          who must record a rationale and may not assess posts they authored, shared, liked or
+          reported. Every administrator action is written to an append-only audit log.
         </p>
       </section>
 
-      <section className="space-y-2">
-        <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
-          3. Prohibited Conduct and Misinformation
-        </h2>
+      <section>
+        <h2>Appeals</h2>
         <p>
-          Users may not deliberately disseminate fabricated claims, impersonate organizations, coordinate synthetic amplification, or weaponize moderation reporting systems. Repeated propagation of debunked claims results in low credibility tier classification and may lead to account suspension.
+          You may appeal any negative event within the appeal window. Opening an appeal holds the
+          event out of the current wave until a different administrator resolves it.
         </p>
       </section>
 
-      <section className="space-y-2">
-        <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
-          4. Right to Appeal
-        </h2>
+      <section>
+        <h2>Suspension and deletion</h2>
         <p>
-          Every contributor retains the statutory right to contest adverse fact-checking assessments within a 14-day window. Lodging an appeal freezes the penalty, preventing it from affecting finalized wave reputation until an independent moderator review concludes.
+          Administrators may suspend accounts for repeated verified misinformation, coordinated
+          manipulation or harassment. Suspended members can still sign in to read, view their score
+          and follow their appeals. You may delete your account at any time from Settings.
         </p>
       </section>
-    </article>
+
+      <section>
+        <h2>Service</h2>
+        <p>
+          The service is provided as is for an academic project. We may change these terms; the date
+          at the top tells you when.
+        </p>
+      </section>
+    </LegalShell>
   );
-};
+}

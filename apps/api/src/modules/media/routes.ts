@@ -28,9 +28,7 @@ mediaRouter.post(
     upload.single('file')(req, res, (err) => {
       if (err) {
         if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
-          return next(
-            new AppError(413, 'PAYLOAD_TOO_LARGE', 'Image file exceeds 5 MB limit'),
-          );
+          return next(new AppError(413, 'PAYLOAD_TOO_LARGE', 'Image file exceeds 5 MB limit'));
         }
         return next(err);
       }

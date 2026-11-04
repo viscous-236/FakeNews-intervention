@@ -18,7 +18,7 @@ export async function likePost(userId: string, postId: string): Promise<void> {
     const post = postResult.rows[0];
     if (!post || post.status === 'deleted') throw new AppError(404, 'NOT_FOUND', 'Post not found');
     if (post.kind !== 'original') {
-      throw new AppError(400, 'INVALID_TARGET', 'Likes are allowed only on original posts');
+      throw new AppError(400, 'VALIDATION_ERROR', 'Likes are allowed only on original posts');
     }
 
     const existing = await tx.query<{ deleted_at: Date | null }>(
@@ -45,7 +45,8 @@ export async function likePost(userId: string, postId: string): Promise<void> {
     }
   });
 
-  if (notificationTarget && pendingNotification) emitNotification(notificationTarget, pendingNotification);
+  if (notificationTarget && pendingNotification)
+    emitNotification(notificationTarget, pendingNotification);
 }
 
 export async function unlikePost(userId: string, postId: string): Promise<void> {

@@ -1,82 +1,52 @@
 import { test, expect } from '@playwright/test';
-import { loginUser } from './helpers/auth.js';
 import { checkA11y } from './helpers/a11y.js';
 
-test.describe('F02–F05: Posts, Feeds, Likes, Comments, and Reshares', () => {
-  test.beforeEach(async ({ page }) => {
-    await loginUser(page, 'e2eadmin', 'AdminPass123!');
-  });
-
-  test('creates a post through composer and sees it in feed', async ({ page }) => {
+test.describe('F02–F05: Posts, feeds, likes, comments and reshares', () => {
+  test('creates a post through the composer and sees it in the feed', async ({ page }) => {
     await page.goto('/');
-
     const postContent = `E2E Playwright test post content ${Date.now()} verifying end to end functionality.`;
-
-    // Composer textarea
-    const textarea = page.locator('textarea').first();
-    await textarea.fill(postContent);
-
-    // Post button
-    const postButton = page.locator('button:has-text("Post"), button[type="submit"]').first();
-    await postButton.click();
-
-    // Verify post appears in feed
-    await expect(page.locator(`text=${postContent}`)).toBeVisible();
+    await page.locator('#composer-body').fill(postContent);
+    await page.getByRole('button', { name: 'Post', exact: true }).click();
+    await expect(page.getByText(postContent)).toBeVisible();
   });
 
-  test('likes and unlikes a post with immediate optimistic state update', async ({ page }) => {
+  test('likes and unlikes a post with an immediate optimistic state update', async ({ page }) => {
     await page.goto('/');
-
-    // Locate the first like button
-    const likeButton = page.locator('button[aria-label*="Like"], button[aria-label*="like"]').first();
+    const article = page.locator('article').first();
+    const likeButton = article.getByRole('button', { name: /^(Like|Remove like), / });
     await expect(likeButton).toBeVisible();
-
-    // Click like
+    const before = await likeButton.getAttribute('aria-pressed');
     await likeButton.click();
-
-    // Click again to unlike
+    await expect(likeButton).toHaveAttribute('aria-pressed', before === 'true' ? 'false' : 'true');
     await likeButton.click();
+    await expect(likeButton).toHaveAttribute('aria-pressed', before ?? 'false');
   });
 
-  test('navigates to post detail, posts a comment, and verifies a11y', async ({ page }) => {
+  test('opens a post, comments, and passes the accessibility audit', async ({ page }) => {
     await page.goto('/');
+    await page.locator('article a[href*="/p/"]').first().click();
+    await expect(page).toHaveURL(/\/p\//);
 
-    // Click on the first post link to view details
-    const postLink = page.locator('article a[href*="/p/"]').first();
-    if (await postLink.isVisible()) {
-      await postLink.click();
-      await expect(page).toHaveURL(/\/p\//);
-
-      // Verify comment composer is present
-      const commentInput = page.locator('textarea').first();
-      await expect(commentInput).toBeVisible();
-
-      const commentText = `Great discussion on verified information ${Date.now()}`;
-      await commentInput.fill(commentText);
-      await page.locator('button:has-text("Comment")').click();
-
-      // Comment should be displayed
-      await expect(page.locator(`text=${commentText}`)).toBeVisible();
-
-      // Accessibility check on Post Detail Page
-      await checkA11y(page, 'Post Detail Page');
-    }
+    const commentText = `Great discussion on verified information ${Date.now()}`;
+    await page.locator('#comment-body').fill(commentText);
+    await page.getByRole('button', { name: 'Comment', exact: true }).click();
+    await expect(page.getByText(commentText)).toBeVisible();
+    await checkA11y(page, 'Post Detail Page');
   });
 
-  test('opens reshare dialog and confirms reshare warning behavior', async ({ page }) => {
+  test('opens the share dialog and cancels it', async ({ page }) => {
     await page.goto('/');
-
-    const reshareBtn = page.locator('button[aria-label*="Reshare"], button[aria-label*="reshare"]').first();
-    if (await reshareBtn.isVisible()) {
-      await reshareBtn.click();
-
-      // Reshare modal should appear
-      const modal = page.locator('div[role="dialog"]');
-      await expect(modal).toBeVisible();
-
-      // Cancel reshare
-      await page.locator('button:has-text("Cancel")').click();
-      await expect(modal).not.toBeVisible();
-    }
+    // Share is disabled on the viewer's own posts; take the first enabled one.
+    const shareButton = page
+      .getByRole('button', { name: /^Share, / })
+      .and(page.locator(':enabled'))
+      .first();
+    await expect(shareButton).toBeVisible();
+    await shareButton.click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await checkA11y(page, 'Share dialog');
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(dialog).toBeHidden();
   });
 });

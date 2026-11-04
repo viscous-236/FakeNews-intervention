@@ -90,6 +90,7 @@ describe('Administrator operations (TASK-059)', () => {
           .post(`/api/v1/admin/users/${target.id}/suspend`)
           .set('Origin', config.APP_ORIGIN)
           .set('Cookie', adminCookie)
+          .send({ reason: 'Repeated verified misinformation' })
       ).status,
     ).toBe(204);
     expect((await request.get('/api/v1/auth/me').set('Cookie', targetCookie)).status).toBe(401);
@@ -103,6 +104,7 @@ describe('Administrator operations (TASK-059)', () => {
           .post(`/api/v1/admin/users/${target.id}/unsuspend`)
           .set('Origin', config.APP_ORIGIN)
           .set('Cookie', adminCookie)
+          .send({ reason: 'Appeal accepted after review' })
       ).status,
     ).toBe(204);
     const audit = await getTestPool().query(
@@ -110,8 +112,14 @@ describe('Administrator operations (TASK-059)', () => {
       [target.id],
     );
     expect(audit.rows).toEqual([
-      { action: 'user.suspend', after: { status: 'suspended' } },
-      { action: 'user.unsuspend', after: { status: 'active' } },
+      {
+        action: 'user.suspend',
+        after: { status: 'suspended', reason: 'Repeated verified misinformation' },
+      },
+      {
+        action: 'user.unsuspend',
+        after: { status: 'active', reason: 'Appeal accepted after review' },
+      },
     ]);
   });
 
@@ -151,6 +159,7 @@ describe('Administrator operations (TASK-059)', () => {
           .delete(`/api/v1/admin/posts/${reshare.id}`)
           .set('Origin', config.APP_ORIGIN)
           .set('Cookie', adminCookie)
+          .send({ reason: 'Coordinated amplification of a false claim' })
       ).status,
     ).toBe(204);
     expect(
@@ -181,13 +190,17 @@ describe('Administrator operations (TASK-059)', () => {
           .delete(`/api/v1/admin/posts/${reshare.id}`)
           .set('Origin', config.APP_ORIGIN)
           .set('Cookie', adminCookie)
+          .send({ reason: 'Coordinated amplification of a false claim' })
       ).status,
     ).toBe(404);
     expect(
-      (await request
-        .delete('/api/v1/admin/posts/not-a-uuid')
-        .set('Origin', config.APP_ORIGIN)
-        .set('Cookie', adminCookie)).status,
+      (
+        await request
+          .delete('/api/v1/admin/posts/not-a-uuid')
+          .set('Origin', config.APP_ORIGIN)
+          .set('Cookie', adminCookie)
+          .send({ reason: 'Coordinated amplification of a false claim' })
+      ).status,
     ).toBe(400);
   });
 

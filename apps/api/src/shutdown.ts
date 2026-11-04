@@ -13,6 +13,7 @@ import type { WebSocketServer } from 'ws';
 import { logger } from './logger.js';
 import { closePool } from './db/pool.js';
 import { closeAllConnections } from './realtime/hub.js';
+import { closeAllSseStreams } from './modules/notifications/routes.js';
 import {
   stopAutoReal,
   stopDetectionWorker,
@@ -37,6 +38,7 @@ export async function executeGracefulShutdown(context: ShutdownContext): Promise
   stopMediaCleanup();
 
   // 2. Terminate real-time SSE and WebSocket clients
+  closeAllSseStreams();
   closeAllConnections();
   if (context.wss) {
     context.wss.close();

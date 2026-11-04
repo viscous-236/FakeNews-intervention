@@ -42,8 +42,18 @@ if command -v pg_restore >/dev/null 2>&1; then
     fi
   }
 else
+  # Fallback to the docker compose container (POSTGRES_USER=postgres, database app).
+  # pg_restore exits 1 on non-fatal warnings; anything above that is a failure.
   docker compose -f "$ROOT_DIR/docker-compose.yml" exec -T postgres \
-    pg_restore --clean --if-exists --no-owner --no-privileges -U app -d app < "${BACKUP_FILE}" || true
+    pg_restore --clean --if-exists --no-owner --no-privileges -U postgres -d app < "${BACKUP_FILE}" || {
+    STATUS=$?
+    if [[ $STATUS -le 1 ]]; then
+      echo "==> Notice: pg_restore completed with non-fatal status ($STATUS)."
+    else
+      echo "==> Error: pg_restore failed with status $STATUS"
+      exit $STATUS
+    fi
+  }
 fi
 
 echo "==> Database restore completed successfully."

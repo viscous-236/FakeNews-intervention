@@ -116,7 +116,12 @@ describe('TEST-106: Security Headers and Limits', () => {
       const fields = res.body.error.details.fields;
       const fieldKeys = Object.keys(fields);
       expect(
-        fieldKeys.some((k) => k.includes('hackerField') || k.includes('role') || fields[k]?.some((msg: string) => msg.includes('unrecognized_keys'))),
+        fieldKeys.some(
+          (k) =>
+            k.includes('hackerField') ||
+            k.includes('role') ||
+            fields[k]?.some((msg: string) => msg.includes('unrecognized_keys')),
+        ),
       ).toBe(true);
     });
   });

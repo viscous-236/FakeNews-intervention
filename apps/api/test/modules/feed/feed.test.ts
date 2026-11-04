@@ -36,7 +36,6 @@ describe('Feed Module (TASK-044)', () => {
       email: 'feed_a@example.com',
       password: 'password123',
       displayName: 'Author A',
-      emailVerified: true,
     });
 
     const userB = await createUser({
@@ -44,7 +43,6 @@ describe('Feed Module (TASK-044)', () => {
       email: 'feed_b@example.com',
       password: 'password123',
       displayName: 'Author B',
-      emailVerified: true,
     });
 
     const pool = getTestPool();
@@ -84,9 +82,7 @@ describe('Feed Module (TASK-044)', () => {
       [userA.id],
     );
 
-    const res = await request
-      .get('/api/v1/feed/global')
-      .set('X-Forwarded-For', '10.0.10.1');
+    const res = await request.get('/api/v1/feed/global').set('X-Forwarded-For', '10.0.10.1');
 
     expect(res.status).toBe(200);
     expect(res.body.items).toHaveLength(3);
@@ -102,7 +98,6 @@ describe('Feed Module (TASK-044)', () => {
       email: 'feed_page@example.com',
       password: 'password123',
       displayName: 'Page Author',
-      emailVerified: true,
     });
 
     const pool = getTestPool();
@@ -145,7 +140,6 @@ describe('Feed Module (TASK-044)', () => {
       email: 'feed_blocker@example.com',
       password: 'password123',
       displayName: 'Blocker User',
-      emailVerified: true,
     });
 
     const blocked = await createUser({
@@ -153,7 +147,6 @@ describe('Feed Module (TASK-044)', () => {
       email: 'feed_blocked@example.com',
       password: 'password123',
       displayName: 'Blocked User',
-      emailVerified: true,
     });
 
     const pool = getTestPool();
@@ -166,10 +159,10 @@ describe('Feed Module (TASK-044)', () => {
     );
 
     // Insert block row
-    await pool.query(
-      `INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)`,
-      [blocker.id, blocked.id],
-    );
+    await pool.query(`INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)`, [
+      blocker.id,
+      blocked.id,
+    ]);
 
     // Blocker login
     const loginRes = await request
@@ -191,9 +184,7 @@ describe('Feed Module (TASK-044)', () => {
 
   it('GET /feed/following: requires auth and includes only own and followed users posts', async () => {
     // 1. Unauthenticated -> 401
-    const unauth = await request
-      .get('/api/v1/feed/following')
-      .set('X-Forwarded-For', '10.0.13.1');
+    const unauth = await request.get('/api/v1/feed/following').set('X-Forwarded-For', '10.0.13.1');
     expect(unauth.status).toBe(401);
 
     // 2. Setup users: follower, followee, and stranger
@@ -202,7 +193,6 @@ describe('Feed Module (TASK-044)', () => {
       email: 'follower@example.com',
       password: 'password123',
       displayName: 'Follower User',
-      emailVerified: true,
     });
 
     const followee = await createUser({
@@ -210,7 +200,6 @@ describe('Feed Module (TASK-044)', () => {
       email: 'followee@example.com',
       password: 'password123',
       displayName: 'Followee User',
-      emailVerified: true,
     });
 
     const stranger = await createUser({
@@ -218,15 +207,14 @@ describe('Feed Module (TASK-044)', () => {
       email: 'stranger@example.com',
       password: 'password123',
       displayName: 'Stranger User',
-      emailVerified: true,
     });
 
     const pool = getTestPool();
     // Follow relationship
-    await pool.query(
-      `INSERT INTO follows (follower_id, followee_id) VALUES ($1, $2)`,
-      [follower.id, followee.id],
-    );
+    await pool.query(`INSERT INTO follows (follower_id, followee_id) VALUES ($1, $2)`, [
+      follower.id,
+      followee.id,
+    ]);
 
     // Post by follower (own post)
     const ownPost = await pool.query<{ id: string }>(

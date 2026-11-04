@@ -30,9 +30,6 @@ export function securityMiddleware(): RequestHandler {
         formAction: ["'self'"],
       },
     },
-    hsts:
-      config.NODE_ENV === 'production'
-        ? { maxAge: 31536000, includeSubDomains: true }
-        : false,
+    hsts: config.NODE_ENV === 'production' ? { maxAge: 31536000, includeSubDomains: true } : false,
   });
 }

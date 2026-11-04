@@ -39,14 +39,6 @@ export const loginSchema = z
 
 export type LoginInput = z.infer<typeof loginSchema>;
 
-export const verifyEmailSchema = z
-  .object({
-    token: z.string().trim().min(1, 'Token is required'),
-  })
-  .strict();
-
-export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
-
 export const forgotPasswordSchema = z
   .object({
     email: z.string().trim().email('Invalid email address').max(255),

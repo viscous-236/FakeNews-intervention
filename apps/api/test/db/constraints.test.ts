@@ -33,7 +33,7 @@ describe('Database Constraints & Invariants (TEST-103)', () => {
       email: 'sigma@example.com',
       password: 'validPassword123',
       displayName: 'Sigma User',
-      sigma: 0.500,
+      sigma: 0.5,
     });
 
     const pool = getTestPool();
@@ -48,15 +48,15 @@ describe('Database Constraints & Invariants (TEST-103)', () => {
       email: 'qguard@example.com',
       password: 'validPassword123',
       displayName: 'Q Guard User',
-      sigma: 0.500,
+      sigma: 0.5,
     });
 
     const pool = getTestPool();
 
     // Blocked outside scoring engine
-    await expect(
-      pool.query(`UPDATE users SET q = 5.000 WHERE id = $1`, [user.id]),
-    ).rejects.toThrow(/q may only be changed by the scoring engine/);
+    await expect(pool.query(`UPDATE users SET q = 5.000 WHERE id = $1`, [user.id])).rejects.toThrow(
+      /q may only be changed by the scoring engine/,
+    );
 
     // Allowed when app.scoring is on inside transaction
     await withTransaction(async (tx) => {
@@ -65,7 +65,7 @@ describe('Database Constraints & Invariants (TEST-103)', () => {
     });
 
     const res = await pool.query<{ q: string }>(`SELECT q FROM users WHERE id = $1`, [user.id]);
-    expect(parseFloat(res.rows[0]!.q)).toBe(5.000);
+    expect(parseFloat(res.rows[0]!.q)).toBe(5.0);
   });
 
   it('3. single open wave enforced by partial unique index (waves_one_open_uq)', async () => {
@@ -82,7 +82,7 @@ describe('Database Constraints & Invariants (TEST-103)', () => {
       email: 'ledger@example.com',
       password: 'validPassword123',
       displayName: 'Ledger User',
-      sigma: 0.500,
+      sigma: 0.5,
     });
 
     const pool = getTestPool();
@@ -125,17 +125,17 @@ describe('Database Constraints & Invariants (TEST-103)', () => {
 
     // Attempting to UPDATE or DELETE ledger row fails
     await expect(
-      pool.query(
-        `UPDATE user_wave_reputation SET delta = 1 WHERE user_id = $1 AND wave_id = $2`,
-        [user.id, waveId],
-      ),
+      pool.query(`UPDATE user_wave_reputation SET delta = 1 WHERE user_id = $1 AND wave_id = $2`, [
+        user.id,
+        waveId,
+      ]),
     ).rejects.toThrow(/user_wave_reputation is immutable/);
 
     await expect(
-      pool.query(
-        `DELETE FROM user_wave_reputation WHERE user_id = $1 AND wave_id = $2`,
-        [user.id, waveId],
-      ),
+      pool.query(`DELETE FROM user_wave_reputation WHERE user_id = $1 AND wave_id = $2`, [
+        user.id,
+        waveId,
+      ]),
     ).rejects.toThrow(/user_wave_reputation is immutable/);
   });
 
@@ -145,7 +145,7 @@ describe('Database Constraints & Invariants (TEST-103)', () => {
       email: 'event@example.com',
       password: 'validPassword123',
       displayName: 'Event User',
-      sigma: 0.500,
+      sigma: 0.5,
     });
 
     const pool = getTestPool();
@@ -240,7 +240,7 @@ describe('Database Constraints & Invariants (TEST-103)', () => {
       email: 'checkkind@example.com',
       password: 'validPassword123',
       displayName: 'Check Kind User',
-      sigma: 0.500,
+      sigma: 0.5,
     });
 
     const pool = getTestPool();
@@ -301,7 +301,7 @@ describe('Database Constraints & Invariants (TEST-103)', () => {
       email: 'author@example.com',
       password: 'validPassword123',
       displayName: 'Author User',
-      sigma: 0.500,
+      sigma: 0.5,
     });
 
     const user2 = await createUser({
@@ -309,7 +309,7 @@ describe('Database Constraints & Invariants (TEST-103)', () => {
       email: 'resharer@example.com',
       password: 'validPassword123',
       displayName: 'Resharer User',
-      sigma: 0.500,
+      sigma: 0.5,
     });
 
     const pool = getTestPool();
@@ -333,17 +333,11 @@ describe('Database Constraints & Invariants (TEST-103)', () => {
     const reshareId = resharePost.rows[0]!.id;
 
     // Liking original post succeeds
-    await pool.query(
-      `INSERT INTO likes (user_id, post_id) VALUES ($1, $2)`,
-      [user2.id, origId],
-    );
+    await pool.query(`INSERT INTO likes (user_id, post_id) VALUES ($1, $2)`, [user2.id, origId]);
 
     // Liking reshare post fails with check_violation
     await expect(
-      pool.query(
-        `INSERT INTO likes (user_id, post_id) VALUES ($1, $2)`,
-        [user1.id, reshareId],
-      ),
+      pool.query(`INSERT INTO likes (user_id, post_id) VALUES ($1, $2)`, [user1.id, reshareId]),
     ).rejects.toThrow(/like target must be an original post/);
   });
 
@@ -353,7 +347,7 @@ describe('Database Constraints & Invariants (TEST-103)', () => {
       email: 'queue@example.com',
       password: 'validPassword123',
       displayName: 'Queue User',
-      sigma: 0.500,
+      sigma: 0.5,
     });
 
     const pool = getTestPool();

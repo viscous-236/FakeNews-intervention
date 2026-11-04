@@ -81,7 +81,7 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
       email: 'test021@example.com',
       password: 'password12345',
       displayName: 'User 021',
-      sigma: 0.500,
+      sigma: 0.5,
     });
 
     const postId = await createPost(author.id);
@@ -108,16 +108,12 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
 
     // Overturn via supersede to 'real'
     await withTransaction(async (tx) => {
-      await supersedeAssessment(
-        tx,
-        initialAssessment,
-        {
-          verdict: 'real',
-          source: 'admin',
-          decided_by: adminId,
-          rationale: 'Overturned to real upon review',
-        },
-      );
+      await supersedeAssessment(tx, initialAssessment, {
+        verdict: 'real',
+        source: 'admin',
+        decided_by: adminId,
+        rationale: 'Overturned to real upon review',
+      });
     });
 
     // Check that a REVERSAL (+1) event was created for Wave 2
@@ -153,7 +149,7 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
       email: 'test022@example.com',
       password: 'password12345',
       displayName: 'User 022',
-      sigma: 0.500,
+      sigma: 0.5,
     });
     const postId = await createPost(author.id);
 
@@ -171,16 +167,12 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
 
     // Before finalizing wave, supersede with unverifiable
     await withTransaction(async (tx) => {
-      await supersedeAssessment(
-        tx,
-        initialAssessment,
-        {
-          verdict: 'unverifiable',
-          source: 'admin',
-          decided_by: adminId,
-          rationale: 'Overturned to unverifiable before finalization',
-        },
-      );
+      await supersedeAssessment(tx, initialAssessment, {
+        verdict: 'unverifiable',
+        source: 'admin',
+        decided_by: adminId,
+        rationale: 'Overturned to unverifiable before finalization',
+      });
     });
 
     // Check old event was voided with assessment_superseded
@@ -195,7 +187,9 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
     const openWave = await getOpenWave();
     await finalizeWave(openWave.id, { kind: 'system' });
 
-    const userRes = await pool.query<{ q: string }>(`SELECT q FROM users WHERE id = $1`, [author.id]);
+    const userRes = await pool.query<{ q: string }>(`SELECT q FROM users WHERE id = $1`, [
+      author.id,
+    ]);
     expect(userRes.rows[0]!.q).toBe('0.000');
   });
 
@@ -205,28 +199,28 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
       email: 'u_auth@example.com',
       password: 'password12345',
       displayName: 'Cascade Author',
-      sigma: 0.500,
+      sigma: 0.5,
     });
     const resharer1 = await createUser({
       username: 'u_cascade_res1',
       email: 'u_res1@example.com',
       password: 'password12345',
       displayName: 'Resharer 1',
-      sigma: 0.500,
+      sigma: 0.5,
     });
     const resharer2 = await createUser({
       username: 'u_cascade_res2',
       email: 'u_res2@example.com',
       password: 'password12345',
       displayName: 'Resharer 2',
-      sigma: 0.500,
+      sigma: 0.5,
     });
     const reporter = await createUser({
       username: 'u_cascade_rep',
       email: 'u_rep@example.com',
       password: 'password12345',
       displayName: 'Reporter',
-      sigma: 0.500,
+      sigma: 0.5,
     });
 
     const postId = await createPost(author.id);
@@ -264,16 +258,12 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
 
     // Now overturn to unverifiable
     await withTransaction(async (tx) => {
-      await supersedeAssessment(
-        tx,
-        fakeAssessment,
-        {
-          verdict: 'unverifiable',
-          source: 'admin',
-          decided_by: adminId,
-          rationale: 'Overturned upon appeal to unverifiable',
-        },
-      );
+      await supersedeAssessment(tx, fakeAssessment, {
+        verdict: 'unverifiable',
+        source: 'admin',
+        decided_by: adminId,
+        rationale: 'Overturned upon appeal to unverifiable',
+      });
     });
 
     // Check reversals in open wave:
@@ -308,7 +298,9 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
 
     // Temporarily disable ledger guard trigger and check2 constraint as DB owner to simulate tampering
     await pool.query(`ALTER TABLE user_wave_reputation DISABLE TRIGGER ledger_guard_trg`);
-    await pool.query(`ALTER TABLE user_wave_reputation DROP CONSTRAINT IF EXISTS user_wave_reputation_check2`);
+    await pool.query(
+      `ALTER TABLE user_wave_reputation DROP CONSTRAINT IF EXISTS user_wave_reputation_check2`,
+    );
     await pool.query(
       `UPDATE user_wave_reputation SET q_after = 99.999 WHERE user_id = $1 AND wave_id = $2`,
       [row.user_id, row.wave_id],
@@ -316,7 +308,9 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
 
     const tamperedCheck = await verifyScores(pool);
     expect(tamperedCheck.ok).toBe(false);
-    expect(tamperedCheck.issues.some((i) => i.invariant === 'I2' || i.invariant === 'I3')).toBe(true);
+    expect(tamperedCheck.issues.some((i) => i.invariant === 'I2' || i.invariant === 'I3')).toBe(
+      true,
+    );
 
     // Restore original and re-enable constraint and trigger
     await pool.query(
@@ -338,7 +332,7 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
       email: 'u_three@example.com',
       password: 'password12345',
       displayName: 'Three Assess User',
-      sigma: 0.500,
+      sigma: 0.5,
     });
     const postId = await createPost(author.id);
 
@@ -358,31 +352,23 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
     // Assessment 2: real (supersedes a1)
     let a2: AssessmentRecord;
     await withTransaction(async (tx) => {
-      const res = await supersedeAssessment(
-        tx,
-        a1,
-        {
-          verdict: 'real',
-          source: 'admin',
-          decided_by: adminId,
-          rationale: 'Rationale 2 - Overturned to Real',
-        },
-      );
+      const res = await supersedeAssessment(tx, a1, {
+        verdict: 'real',
+        source: 'admin',
+        decided_by: adminId,
+        rationale: 'Rationale 2 - Overturned to Real',
+      });
       a2 = res.newAssessment;
     });
 
     // Assessment 3: fake again (supersedes a2)
     await withTransaction(async (tx) => {
-      await supersedeAssessment(
-        tx,
-        a2,
-        {
-          verdict: 'fake',
-          source: 'admin',
-          decided_by: adminId,
-          rationale: 'Rationale 3 - Overturned back to Fake',
-        },
-      );
+      await supersedeAssessment(tx, a2, {
+        verdict: 'fake',
+        source: 'admin',
+        decided_by: adminId,
+        rationale: 'Rationale 3 - Overturned back to Fake',
+      });
     });
 
     const countRes = await pool.query<{ count: string }>(
@@ -401,28 +387,28 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
       email: 'u_gf_author@example.com',
       password: 'password12345',
       displayName: 'GF Author',
-      sigma: 0.500,
+      sigma: 0.5,
     });
     const userB = await createUser({
       username: 'u_gf_user_b',
       email: 'u_gf_user_b@example.com',
       password: 'password12345',
       displayName: 'GF User B',
-      sigma: 0.500,
+      sigma: 0.5,
     });
     const userC = await createUser({
       username: 'u_gf_user_c',
       email: 'u_gf_user_c@example.com',
       password: 'password12345',
       displayName: 'GF User C',
-      sigma: 0.500,
+      sigma: 0.5,
     });
     const userD = await createUser({
       username: 'u_gf_user_d',
       email: 'u_gf_user_d@example.com',
       password: 'password12345',
       displayName: 'GF User D',
-      sigma: 0.500,
+      sigma: 0.5,
     });
 
     const postId = await createPost(author.id);
@@ -466,16 +452,12 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
 
     // Later: Admin supersedes assessment with FAKE
     await withTransaction(async (tx) => {
-      await supersedeAssessment(
-        tx,
-        aReal,
-        {
-          verdict: 'fake',
-          source: 'admin',
-          decided_by: adminId,
-          rationale: 'Overturned to fake: misinformation found',
-        },
-      );
+      await supersedeAssessment(tx, aReal, {
+        verdict: 'fake',
+        source: 'admin',
+        decided_by: adminId,
+        rationale: 'Overturned to fake: misinformation found',
+      });
     });
 
     // Good-Faith Window protection assertions:
@@ -508,14 +490,14 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
       email: 'u_rep_auth@example.com',
       password: 'password12345',
       displayName: 'Rep Author',
-      sigma: 0.500,
+      sigma: 0.5,
     });
     const reporter = await createUser({
       username: 'u_rep_reporter',
       email: 'u_rep_rep@example.com',
       password: 'password12345',
       displayName: 'Rep Reporter',
-      sigma: 0.500,
+      sigma: 0.5,
     });
     const postId = await createPost(author.id);
 
@@ -546,24 +528,19 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
     expect(reportStatus.rows[0]!.status).toBe('resolved');
 
     // Reporter has 0 events
-    const repEventsBefore = await pool.query(
-      `SELECT * FROM reputation_events WHERE user_id = $1`,
-      [reporter.id],
-    );
+    const repEventsBefore = await pool.query(`SELECT * FROM reputation_events WHERE user_id = $1`, [
+      reporter.id,
+    ]);
     expect(repEventsBefore.rows).toHaveLength(0);
 
     // Later: Admin supersedes unverifiable with fake
     await withTransaction(async (tx) => {
-      await supersedeAssessment(
-        tx,
-        aUnverifiable,
-        {
-          verdict: 'fake',
-          source: 'admin',
-          decided_by: adminId,
-          rationale: 'Confirmed fake news after investigation',
-        },
-      );
+      await supersedeAssessment(tx, aUnverifiable, {
+        verdict: 'fake',
+        source: 'admin',
+        decided_by: adminId,
+        rationale: 'Confirmed fake news after investigation',
+      });
     });
 
     // Reporter now receives VALID_REPORT (+1)
@@ -583,14 +560,14 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
       email: 'u_like_auth@example.com',
       password: 'password12345',
       displayName: 'Like Author',
-      sigma: 0.500,
+      sigma: 0.5,
     });
     const liker = await createUser({
       username: 'u_like_liker',
       email: 'u_like_liker@example.com',
       password: 'password12345',
       displayName: 'Liker',
-      sigma: 0.500,
+      sigma: 0.5,
     });
     const postId = await createPost(author.id);
 
@@ -636,7 +613,9 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
     const openWave = await getOpenWave();
     await finalizeWave(openWave.id, { kind: 'system' });
 
-    const likerScore = await pool.query<{ q: string }>(`SELECT q FROM users WHERE id = $1`, [liker.id]);
+    const likerScore = await pool.query<{ q: string }>(`SELECT q FROM users WHERE id = $1`, [
+      liker.id,
+    ]);
     expect(likerScore.rows[0]!.q).toBe('0.000');
   });
 
@@ -646,14 +625,14 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
       email: 'u_lfa@example.com',
       password: 'password12345',
       displayName: 'LFA Author',
-      sigma: 0.500,
+      sigma: 0.5,
     });
     const liker = await createUser({
       username: 'u_like_fin_liker',
       email: 'u_lfl@example.com',
       password: 'password12345',
       displayName: 'LFL Liker',
-      sigma: 0.500,
+      sigma: 0.5,
     });
     const postId = await createPost(author.id);
 
@@ -673,7 +652,9 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
     const wave1 = await getOpenWave();
     await finalizeWave(wave1.id, { kind: 'system' });
 
-    const likerQ1 = await pool.query<{ q: string }>(`SELECT q FROM users WHERE id = $1`, [liker.id]);
+    const likerQ1 = await pool.query<{ q: string }>(`SELECT q FROM users WHERE id = $1`, [
+      liker.id,
+    ]);
     expect(likerQ1.rows[0]!.q).toBe('-0.500');
 
     // Wave 2: Liker unlikes
@@ -703,14 +684,14 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
       email: 'u_rcap@example.com',
       password: 'password12345',
       displayName: 'Reshare Cap User',
-      sigma: 0.500,
+      sigma: 0.5,
     });
     const otherAuthor = await createUser({
       username: 'u_other_auth',
       email: 'u_oa@example.com',
       password: 'password12345',
       displayName: 'Other Author',
-      sigma: 0.500,
+      sigma: 0.5,
     });
 
     // Resharer reshares 6 posts verified as real by admin
@@ -789,14 +770,14 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
       email: 'u_ra@example.com',
       password: 'password12345',
       displayName: 'Retract Author',
-      sigma: 0.500,
+      sigma: 0.5,
     });
     const resharer = await createUser({
       username: 'u_retract_res',
       email: 'u_rr@example.com',
       password: 'password12345',
       displayName: 'Retract Resharer',
-      sigma: 0.500,
+      sigma: 0.5,
     });
     const postId = await createPost(author.id);
 
@@ -833,10 +814,9 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
       eventId = ev.id;
 
       // User opens an appeal -> event becomes 'held', appeal status 'open'
-      await tx.query(
-        `UPDATE reputation_events SET status = 'held', wave_id = NULL WHERE id = $1`,
-        [eventId],
-      );
+      await tx.query(`UPDATE reputation_events SET status = 'held', wave_id = NULL WHERE id = $1`, [
+        eventId,
+      ]);
       await tx.query(
         `INSERT INTO appeals (event_id, assessment_id, appellant_id, reason, status)
          VALUES ($1, $2, $3, 'A valid appeal reason for false misinformation event', 'open')`,
@@ -876,14 +856,14 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
       email: 'u_ta@example.com',
       password: 'password12345',
       displayName: 'Toggle Author',
-      sigma: 0.500,
+      sigma: 0.5,
     });
     const userX = await createUser({
       username: 'u_toggle_userx',
       email: 'u_tx@example.com',
       password: 'password12345',
       displayName: 'Toggle User X',
-      sigma: 0.500,
+      sigma: 0.5,
     });
     const postId = await createPost(author.id);
 
@@ -971,21 +951,21 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
       email: 'pub_a@example.com',
       password: 'password12345',
       displayName: 'Trusted Publisher A',
-      sigma: 0.500,
+      sigma: 0.5,
     });
     const pubB = await createUser({
       username: 'pub_low_b',
       email: 'pub_b@example.com',
       password: 'password12345',
       displayName: 'Low Publisher B',
-      sigma: 0.500,
+      sigma: 0.5,
     });
     const interactor = await createUser({
       username: 'interactor_user',
       email: 'interactor@example.com',
       password: 'password12345',
       displayName: 'Interactor User',
-      sigma: 0.500,
+      sigma: 0.5,
     });
 
     const postA = await createPost(pubA.id);
@@ -1018,7 +998,10 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
         )
       ).rows[0]!;
       await syncReshareEventOnCreate(tx, rA);
-      await tx.query(`INSERT INTO likes (user_id, post_id) VALUES ($1, $2)`, [interactor.id, postA]);
+      await tx.query(`INSERT INTO likes (user_id, post_id) VALUES ($1, $2)`, [
+        interactor.id,
+        postA,
+      ]);
       await syncLikeEventOnLike(tx, interactor.id, postA);
 
       const rB = (
@@ -1029,7 +1012,10 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
         )
       ).rows[0]!;
       await syncReshareEventOnCreate(tx, rB);
-      await tx.query(`INSERT INTO likes (user_id, post_id) VALUES ($1, $2)`, [interactor.id, postB]);
+      await tx.query(`INSERT INTO likes (user_id, post_id) VALUES ($1, $2)`, [
+        interactor.id,
+        postB,
+      ]);
       await syncLikeEventOnLike(tx, interactor.id, postB);
     });
 
@@ -1053,7 +1039,7 @@ describe('Scoring Corrections, Overturns & Retractions (TEST-021 through TEST-03
       email: 'pub_viral@example.com',
       password: 'password12345',
       displayName: 'Viral Publisher',
-      sigma: 0.500,
+      sigma: 0.5,
     });
 
     const pQuiet = await createPost(publisher.id); // 0 likes, 0 reshares

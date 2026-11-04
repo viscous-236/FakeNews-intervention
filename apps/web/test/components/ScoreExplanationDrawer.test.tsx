@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ScoreExplanationDrawer } from '../../src/components/score/ScoreExplanationDrawer';
-import { EventItem } from '../../src/types';
+import type { EventItem } from '../../src/types';
 import { copy } from '../../src/copy';
 
 const mockCountedEvents: EventItem[] = [
@@ -34,10 +34,10 @@ const mockCountedEvents: EventItem[] = [
 ];
 
 describe('ScoreExplanationDrawer', () => {
-  it('renders Paper Equation 2 formula and arithmetic substitution with real numbers', () => {
+  it('renders Equation 2 and the substitution with the real numbers', () => {
     render(
       <ScoreExplanationDrawer
-        isOpen={true}
+        isOpen
         onClose={vi.fn()}
         waveNumber={3}
         qBefore="2.500"
@@ -49,25 +49,21 @@ describe('ScoreExplanationDrawer', () => {
         delta="0.500"
         qAfter="3.000"
         countedEvents={mockCountedEvents}
-      />
+      />,
     );
-
-    // Header & formula
-    expect(screen.getByText(/How Your Score is Calculated \(Wave #3\)/)).toBeDefined();
-    expect(screen.getByText(copy.score.formulaDisplay)).toBeDefined();
-    expect(screen.getByText(copy.score.formulaRDisplay)).toBeDefined();
-
-    // Arithmetic lines
+    expect(screen.getByText(copy.score.drawerTitle(3))).toBeDefined();
+    expect(screen.getByText(copy.score.formula)).toBeDefined();
+    expect(screen.getByText(copy.score.formulaR)).toBeDefined();
     expect(screen.getByText('+2')).toBeDefined();
     expect(screen.getAllByText('-1').length).toBeGreaterThan(0);
     expect(screen.getByText('0.500 × 1 = 0.500')).toBeDefined();
     expect(screen.getByText('2.500 + (0.500) = 3.000')).toBeDefined();
   });
 
-  it('renders all counted event kinds including RESPONSIBLE_RESHARE and MISINFO_LIKE', () => {
+  it('lists every counted event kind, including RESPONSIBLE_RESHARE and MISINFO_LIKE', () => {
     render(
       <ScoreExplanationDrawer
-        isOpen={true}
+        isOpen
         onClose={vi.fn()}
         waveNumber={3}
         qBefore="2.500"
@@ -79,13 +75,11 @@ describe('ScoreExplanationDrawer', () => {
         delta="0.000"
         qAfter="2.500"
         countedEvents={mockCountedEvents}
-      />
+      />,
     );
-
-    // Event kind labels from copy.ts
     expect(screen.getByText(copy.eventKind.RESPONSIBLE_RESHARE)).toBeDefined();
     expect(screen.getByText(copy.eventKind.MISINFO_LIKE)).toBeDefined();
-    expect(screen.getByText('"Verified climate report excerpt"')).toBeDefined();
-    expect(screen.getByText('"Debunked viral claim excerpt"')).toBeDefined();
+    expect(screen.getByText('“Verified climate report excerpt”')).toBeDefined();
+    expect(screen.getByText('“Debunked viral claim excerpt”')).toBeDefined();
   });
 });

@@ -5,6 +5,7 @@
  */
 
 import * as argon2 from 'argon2';
+import Decimal from 'decimal.js';
 import { UpdateMeInput } from '@app/shared';
 import { config } from '../../config.js';
 import { type PoolClient } from '../../db/pool.js';
@@ -33,7 +34,6 @@ export interface CreateUserInput {
   displayName: string;
   sigma?: number;
   role?: 'user' | 'admin';
-  emailVerified?: boolean;
 }
 
 export interface UserSummary {
@@ -53,7 +53,6 @@ export interface MeUser {
   avatarUrl: string | null;
   role: 'user' | 'admin';
   status: 'active' | 'suspended' | 'deleted';
-  emailVerified: boolean;
   score: {
     q: string;
     sigma: string;
@@ -80,10 +79,9 @@ export function computeTier(q: string | number): Tier {
 }
 
 export function toMeUser(user: UserRow): MeUser {
-  const qNum = parseFloat(user.q);
-  const qStr = (isNaN(qNum) ? 0 : qNum).toFixed(3);
-  const sigmaNum = parseFloat(user.sigma);
-  const sigmaStr = (isNaN(sigmaNum) ? 0.5 : sigmaNum).toFixed(3);
+  // numeric columns arrive as strings; format through Decimal, never a float (REQ-003)
+  const qStr = new Decimal(user.q).toFixed(3);
+  const sigmaStr = new Decimal(user.sigma).toFixed(3);
 
   return {
     id: user.id,
@@ -91,16 +89,13 @@ export function toMeUser(user: UserRow): MeUser {
     email: user.email,
     displayName: user.display_name,
     bio: user.bio,
-    avatarUrl: user.avatar_media_id
-      ? `${config.S3_PUBLIC_BASE_URL}/${user.avatar_media_id}`
-      : null,
+    avatarUrl: user.avatar_media_id ? `${config.S3_PUBLIC_BASE_URL}/${user.avatar_media_id}` : null,
     role: user.role,
     status: user.status,
-    emailVerified: Boolean(user.email_verified_at),
     score: {
       q: qStr,
       sigma: sigmaStr,
-      tier: computeTier(qNum),
+      tier: computeTier(user.q),
     },
     createdAt: new Date(user.created_at).toISOString(),
   };
@@ -122,21 +117,15 @@ export async function hashPassword(password: string): Promise<string> {
 /**
  * Verify password against argon2 hash.
  */
-export async function verifyPassword(
-  hash: string,
-  plain: string,
-): Promise<boolean> {
+export async function verifyPassword(hash: string, plain: string): Promise<boolean> {
   return argon2.verify(hash, plain);
 }
 
 /**
- * Create a user with argon2id password hash, sigma validation, and optional verification.
+ * Create a user with argon2id password hash and sigma validation.
  * Reused by scripts/create-user.ts and scripts/create-admin.ts.
  */
-export async function createUser(
-  input: CreateUserInput,
-  client?: PoolClient,
-): Promise<UserRow> {
+export async function createUser(input: CreateUserInput, client?: PoolClient): Promise<UserRow> {
   const sigma = input.sigma !== undefined ? input.sigma : config.SIGMA_DEFAULT;
 
   if (typeof sigma !== 'number' || Number.isNaN(sigma) || sigma < 0 || sigma > 1) {
@@ -144,7 +133,6 @@ export async function createUser(
   }
 
   const passwordHash = await hashPassword(input.password);
-  const emailVerifiedAt = input.emailVerified ? new Date() : null;
 
   return insertUser(
     {
@@ -154,7 +142,6 @@ export async function createUser(
       displayName: input.displayName,
       role: input.role ?? 'user',
       sigma,
-      emailVerifiedAt,
     },
     client,
   );
@@ -183,18 +170,15 @@ export async function getUserProfile(
   const isAdmin = viewer?.role === 'admin';
   const showQ = config.PUBLIC_SCORE_VISIBILITY === 'full' || isSelf || isAdmin;
 
-  const qNum = parseFloat(user.q);
-  const qStr = (isNaN(qNum) ? 0 : qNum).toFixed(3);
+  const qStr = new Decimal(user.q).toFixed(3);
 
   const profile: PublicUserProfile = {
     id: user.id,
     username: user.username,
     displayName: user.display_name,
     bio: user.bio,
-    avatarUrl: user.avatar_media_id
-      ? `${config.S3_PUBLIC_BASE_URL}/${user.avatar_media_id}`
-      : null,
-    tier: computeTier(qNum),
+    avatarUrl: user.avatar_media_id ? `${config.S3_PUBLIC_BASE_URL}/${user.avatar_media_id}` : null,
+    tier: computeTier(user.q),
     ...(showQ ? { q: qStr } : {}),
     counts,
     viewer: viewerRelationship,
@@ -207,10 +191,7 @@ export async function getUserProfile(
 /**
  * Update current user profile (PATCH /users/me).
  */
-export async function updateProfile(
-  userId: string,
-  input: UpdateMeInput,
-): Promise<MeUser> {
+export async function updateProfile(userId: string, input: UpdateMeInput): Promise<MeUser> {
   if (input.avatarMediaId) {
     const exists = await checkMediaExists(input.avatarMediaId);
     if (!exists) {
@@ -231,10 +212,7 @@ export async function updateProfile(
  * Delete account (DELETE /users/me per RUL-022, SEC-014).
  * Verifies password, anonymizes PII and purges active sessions.
  */
-export async function deleteAccount(
-  user: UserRow,
-  password: string,
-): Promise<void> {
+export async function deleteAccount(user: UserRow, password: string): Promise<void> {
   const valid = await verifyPassword(user.password_hash, password);
   if (!valid) {
     throw new AppError(401, 'INVALID_CREDENTIALS', 'Incorrect password');

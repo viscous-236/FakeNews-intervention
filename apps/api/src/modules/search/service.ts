@@ -34,7 +34,7 @@ export async function searchPosts(
               u.display_name AS author_display_name,
               u.avatar_media_id AS author_avatar_media_id,
               u.q AS author_q,
-              ts_rank_cd(p.body_tsv, websearch_to_tsquery('english', $1)) AS search_rank
+              ts_rank(p.body_tsv, websearch_to_tsquery('english', $1)) AS search_rank
          FROM posts p
          JOIN users u ON u.id = p.author_id
         WHERE p.kind = 'original' AND p.status = 'published' AND p.deleted_at IS NULL
@@ -71,8 +71,7 @@ export async function searchPosts(
   const last = rows.at(-1);
   return {
     items,
-    nextCursor:
-      hasMore && last ? encodeCursor(new Date(last.created_at), last.id) : null,
+    nextCursor: hasMore && last ? encodeCursor(new Date(last.created_at), last.id) : null,
   };
 }
 
@@ -105,21 +104,14 @@ export async function searchUsers(
          )
       ORDER BY search_rank DESC, created_at DESC, id DESC
       LIMIT $5`,
-    [
-      query,
-      decoded?.createdAt ?? null,
-      decoded?.id ?? null,
-      viewerId ?? null,
-      limit + 1,
-    ],
+    [query, decoded?.createdAt ?? null, decoded?.id ?? null, viewerId ?? null, limit + 1],
   );
   const hasMore = result.rows.length > limit;
   const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
   const last = rows.at(-1);
   return {
     items: rows.map(toUserSummary),
-    nextCursor:
-      hasMore && last ? encodeCursor(new Date(last.created_at), last.id) : null,
+    nextCursor: hasMore && last ? encodeCursor(new Date(last.created_at), last.id) : null,
   };
 }
 

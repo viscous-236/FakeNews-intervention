@@ -35,7 +35,6 @@ export interface CreateUserOpts {
   role?: 'user' | 'admin';
   status?: 'active' | 'suspended' | 'deleted';
   sigma?: number;
-  emailVerified?: boolean;
 }
 
 export interface UserRow {
@@ -59,9 +58,9 @@ export async function createTestUser(
 
   const result = await pool.query<UserRow>(
     `INSERT INTO users
-       (username, email, password_hash, display_name, role, status, sigma, email_verified_at)
+       (username, email, password_hash, display_name, role, status, sigma)
      VALUES
-       ($1, $2, $3, $4, $5, $6, $7, $8)
+       ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
     [
       username,
@@ -72,7 +71,6 @@ export async function createTestUser(
       opts.role ?? 'user',
       opts.status ?? 'active',
       sigma,
-      opts.emailVerified !== false ? new Date() : null,
     ],
   );
 

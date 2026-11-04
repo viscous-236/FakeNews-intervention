@@ -238,7 +238,6 @@ components:
         - avatarUrl
         - role
         - status
-        - emailVerified
         - score
         - createdAt
       properties:
@@ -262,8 +261,6 @@ components:
           $ref: '#/components/schemas/UserRole'
         status:
           $ref: '#/components/schemas/UserStatus'
-        emailVerified:
-          type: boolean
         score:
           type: object
           required:
@@ -579,14 +576,6 @@ components:
           type: string
           minLength: 1
           maxLength: 128
-    VerifyEmailInput:
-      type: object
-      required:
-        - token
-      properties:
-        token:
-          type: string
-          minLength: 1
     ForgotPasswordInput:
       type: object
       required:
@@ -1031,38 +1020,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-  /auth/verify-email:
-    post:
-      tags:
-        - Auth
-      summary: Verify email address with verification token
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/VerifyEmailInput'
-      responses:
-        '204':
-          description: Email verified
-        '400':
-          description: Invalid or expired token
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-  /auth/resend-verification:
-    post:
-      tags:
-        - Auth
-      summary: Resend verification email
-      security:
-        - cookieAuth: []
-      responses:
-        '204':
-          description: Verification email queued
-        '429':
-          description: Rate limit exceeded
   /auth/forgot-password:
     post:
       tags:
@@ -2049,6 +2006,7 @@ paths:
                           - nAdj
                           - r
                           - projectedDelta
+                          - projectedQ
                         properties:
                           nPos:
                             type: integer
@@ -2060,6 +2018,10 @@ paths:
                             type: integer
                           projectedDelta:
                             type: string
+                            description: sigma × R, computed with decimal.js (DEC-015)
+                          projectedQ:
+                            type: string
+                            description: Q + projectedDelta, computed with decimal.js (DEC-015)
                   thresholds:
                     type: object
                     required:
@@ -3235,6 +3197,20 @@ paths:
       security:
         - cookieAuth: []
       parameters:
+        - name: entityType
+          in: query
+          schema:
+            type: string
+        - name: entityId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: actorId
+          in: query
+          schema:
+            type: string
+            format: uuid
         - name: action
           in: query
           schema:

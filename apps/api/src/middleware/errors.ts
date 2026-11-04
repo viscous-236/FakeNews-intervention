@@ -26,12 +26,7 @@ export function notFoundHandler(req: Request, res: Response): void {
   res.status(404).json(body);
 }
 
-export function errorHandler(
-  err: unknown,
-  req: Request,
-  res: Response,
-  _next: NextFunction,
-): void {
+export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction): void {
   const requestId = (req as Request & { id?: string }).id ?? randomUUID();
 
   // AppError domain exception
@@ -68,7 +63,11 @@ export function errorHandler(
   }
 
   // JSON syntax error from express.json()
-  if (err instanceof SyntaxError && 'status' in err && (err as { status: unknown }).status === 400) {
+  if (
+    err instanceof SyntaxError &&
+    'status' in err &&
+    (err as { status: unknown }).status === 400
+  ) {
     const body: ErrorEnvelope = {
       error: {
         code: 'VALIDATION_ERROR',

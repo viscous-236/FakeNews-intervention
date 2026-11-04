@@ -75,10 +75,7 @@ export async function insertMedia(
   return row;
 }
 
-export async function findMediaById(
-  id: string,
-  client?: PoolClient,
-): Promise<MediaRow | null> {
+export async function findMediaById(id: string, client?: PoolClient): Promise<MediaRow | null> {
   const executor = client ?? getPool();
   const res = await executor.query<MediaRow>(
     `SELECT id, owner_id, kind, object_key, content_type, bytes, width, height, created_at
@@ -106,10 +103,7 @@ export async function findOrphanedMedia(
   return res.rows;
 }
 
-export async function deleteMedia(
-  id: string,
-  client?: PoolClient,
-): Promise<void> {
+export async function deleteMedia(id: string, client?: PoolClient): Promise<void> {
   const executor = client ?? getPool();
   await executor.query(`DELETE FROM media WHERE id = $1`, [id]);
 }

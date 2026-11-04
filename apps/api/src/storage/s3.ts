@@ -12,8 +12,13 @@ import {
   CreateBucketCommand,
   GetObjectCommand,
 } from '@aws-sdk/client-s3';
+import { NodeHttpHandler } from '@smithy/node-http-handler';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
+import { AppError } from '../middleware/appError.js';
+
+/** Section 1.1: API → S3 times out after 20 s. */
+export const S3_TIMEOUT_MS = 20_000;
 
 let s3Client: S3Client | null = null;
 
@@ -27,6 +32,11 @@ export function getS3Client(): S3Client {
         secretAccessKey: config.S3_SECRET_ACCESS_KEY,
       },
       forcePathStyle: config.S3_FORCE_PATH_STYLE,
+      maxAttempts: 2,
+      requestHandler: new NodeHttpHandler({
+        connectionTimeout: S3_TIMEOUT_MS,
+        requestTimeout: S3_TIMEOUT_MS,
+      }),
     });
   }
   return s3Client;
@@ -46,20 +56,22 @@ export async function ensureBucketExists(): Promise<void> {
   }
 }
 
-export async function putObject(
-  key: string,
-  body: Buffer,
-  contentType: string,
-): Promise<void> {
+export async function putObject(key: string, body: Buffer, contentType: string): Promise<void> {
   const client = getS3Client();
-  await client.send(
-    new PutObjectCommand({
-      Bucket: config.S3_BUCKET,
-      Key: key,
-      Body: body,
-      ContentType: contentType,
-    }),
-  );
+  try {
+    await client.send(
+      new PutObjectCommand({
+        Bucket: config.S3_BUCKET,
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+      }),
+    );
+  } catch (err) {
+    // Section 1.7: object storage failure on upload → 502 UPSTREAM_FAILED
+    logger.error({ err, key }, 'Object storage upload failed');
+    throw new AppError(502, 'UPSTREAM_FAILED', 'Object storage is unavailable');
+  }
 }
 
 export async function deleteObject(key: string): Promise<void> {

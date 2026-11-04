@@ -182,12 +182,7 @@ export async function predict(options: PredictOptions): Promise<DetectorPredicti
       );
     }
     if (status === 422) {
-      throw new DetectorClientError(
-        'HTTP_422',
-        'Detector unprocessable input',
-        422,
-        errBody,
-      );
+      throw new DetectorClientError('HTTP_422', 'Detector unprocessable input', 422, errBody);
     }
     if (status >= 500) {
       throw new DetectorClientError(
@@ -322,9 +317,7 @@ export interface ModelInfoOptions {
 /**
  * Calls GET /v1/model-info to retrieve model metadata.
  */
-export async function getDetectorModelInfo(
-  options?: ModelInfoOptions,
-): Promise<DetectorModelInfo> {
+export async function getDetectorModelInfo(options?: ModelInfoOptions): Promise<DetectorModelInfo> {
   const baseUrl = options?.baseUrl ?? config.DETECTOR_URL;
   const apiKey = options?.apiKey ?? config.DETECTOR_API_KEY;
   const timeoutMs = options?.timeoutMs ?? config.DETECTOR_TIMEOUT_MS;
@@ -363,11 +356,7 @@ export async function getDetectorModelInfo(
   }
 
   if (response.status === 401) {
-    throw new DetectorClientError(
-      'HTTP_401',
-      'Detector unauthorized on model-info',
-      401,
-    );
+    throw new DetectorClientError('HTTP_401', 'Detector unauthorized on model-info', 401);
   }
   if (!response.ok) {
     throw new DetectorClientError(

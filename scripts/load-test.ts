@@ -56,7 +56,7 @@ async function runBenchmark(cfg: EndpointConfig): Promise<Result> {
         connections: cfg.connections,
         duration: cfg.duration,
         headers: {
-          'Origin': 'http://localhost:5173',
+          Origin: 'http://localhost:5173',
         },
       },
       (err, result) => {

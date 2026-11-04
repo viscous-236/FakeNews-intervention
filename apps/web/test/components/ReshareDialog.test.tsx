@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { ReshareDialog } from '../../src/components/posts/ReshareDialog';
-import { Post } from '../../src/types';
+import type { Post } from '../../src/types';
 import { copy } from '../../src/copy';
+import { renderWithProviders } from '../helpers';
 
 const basePost: Post = {
   id: 'post-101',
@@ -29,62 +30,56 @@ const basePost: Post = {
 };
 
 describe('ReshareDialog', () => {
-  it('displays confirmation warning prompt when requiresShareConfirmation is true', () => {
-    render(
+  it('shows the warning and requires acknowledgement when confirmation is required', () => {
+    renderWithProviders(
       <ReshareDialog
         post={basePost}
-        isOpen={true}
+        isOpen
         onClose={vi.fn()}
         onConfirm={vi.fn().mockResolvedValue(undefined)}
-      />
+      />,
+      { withAuth: false },
     );
-
     expect(screen.getByText(copy.reshareDialog.warningPrompt)).toBeDefined();
-    expect(screen.getAllByText(copy.reshareDialog.title).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(basePost.body)).toBeDefined();
+    const submit = screen.getByRole('button', {
+      name: copy.reshareDialog.confirmShare,
+    }) as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+    fireEvent.click(screen.getByLabelText(copy.reshareDialog.acknowledge));
+    expect(submit.disabled).toBe(false);
   });
 
-  it('does not display warning prompt when requiresShareConfirmation is false', () => {
-    const safePost: Post = {
-      ...basePost,
-      requiresShareConfirmation: false,
-      label: 'fact_checked_true',
-    };
-
-    render(
+  it('does not show the warning when confirmation is not required', () => {
+    renderWithProviders(
       <ReshareDialog
-        post={safePost}
-        isOpen={true}
+        post={{ ...basePost, requiresShareConfirmation: false, label: 'fact_checked_true' }}
+        isOpen
         onClose={vi.fn()}
         onConfirm={vi.fn().mockResolvedValue(undefined)}
-      />
+      />,
+      { withAuth: false },
     );
-
     expect(screen.queryByText(copy.reshareDialog.warningPrompt)).toBeNull();
   });
 
-  it('submits onConfirm callback with optional comment', async () => {
-    const onConfirmMock = vi.fn().mockResolvedValue(undefined);
-    const onCloseMock = vi.fn();
-
-    render(
-      <ReshareDialog
-        post={basePost}
-        isOpen={true}
-        onClose={onCloseMock}
-        onConfirm={onConfirmMock}
-      />
+  it('submits the comment and acknowledgedWarning = true, then closes', async () => {
+    const onConfirm = vi.fn().mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    renderWithProviders(
+      <ReshareDialog post={basePost} isOpen onClose={onClose} onConfirm={onConfirm} />,
+      { withAuth: false },
     );
 
-    const textarea = screen.getByPlaceholderText(copy.reshareDialog.commentPlaceholder);
-    fireEvent.change(textarea, { target: { value: 'Important context on this post' } });
-
-    const submitBtn = screen.getByRole('button', { name: copy.reshareDialog.confirmShare });
-    fireEvent.click(submitBtn);
+    fireEvent.click(screen.getByLabelText(copy.reshareDialog.acknowledge));
+    fireEvent.change(screen.getByPlaceholderText(copy.reshareDialog.commentPlaceholder), {
+      target: { value: 'Important context on this post' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: copy.reshareDialog.confirmShare }));
 
     await waitFor(() => {
-      expect(onConfirmMock).toHaveBeenCalledWith('Important context on this post');
-      expect(onCloseMock).toHaveBeenCalled();
+      expect(onConfirm).toHaveBeenCalledWith('Important context on this post', true);
+      expect(onClose).toHaveBeenCalled();
     });
   });
 });

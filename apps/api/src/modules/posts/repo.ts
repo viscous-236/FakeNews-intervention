@@ -203,10 +203,7 @@ export async function findPostLatestDetection(
   return res.rows[0] ?? null;
 }
 
-export async function findPostImages(
-  postId: string,
-  client?: PoolClient,
-): Promise<PostImageRow[]> {
+export async function findPostImages(postId: string, client?: PoolClient): Promise<PostImageRow[]> {
   const executor = client ?? getPool();
   const res = await executor.query<PostImageRow>(
     `SELECT m.id, m.width, m.height
@@ -375,10 +372,7 @@ export async function updatePostContent(
   return res.rows[0]!;
 }
 
-export async function softDeletePostRow(
-  postId: string,
-  client?: PoolClient,
-): Promise<void> {
+export async function softDeletePostRow(postId: string, client?: PoolClient): Promise<void> {
   const executor = client ?? getPool();
   await executor.query(
     `UPDATE posts
@@ -398,7 +392,11 @@ export async function findPostsByUser(
   client?: PoolClient,
 ): Promise<PostAuthorJoinedRow[]> {
   const executor = client ?? getPool();
-  const whereClauses: string[] = ['p.author_id = $1', "p.status <> 'deleted'", 'p.deleted_at IS NULL'];
+  const whereClauses: string[] = [
+    'p.author_id = $1',
+    "p.status <> 'deleted'",
+    'p.deleted_at IS NULL',
+  ];
   const values: unknown[] = [authorId];
   let idx = 2;
 

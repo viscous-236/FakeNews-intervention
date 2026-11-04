@@ -275,14 +275,14 @@ describe('Appeal lifecycle (TASK-057–058)', () => {
     }
     expect((await resolve(randomUUID(), { decision: 'upheld', note })).status).toBe(404);
     await assessPost(postId, adminId, { verdict: 'real', rationale });
-    expect((await open(events[1]!)).status).toBe(400);
+    expect((await open(events[1]!)).status).toBe(409);
     const positive = (
       await getTestPool().query(
         `SELECT id, user_id FROM reputation_events WHERE kind = 'RESPONSIBLE_POST'`,
       )
     ).rows[0];
     await expect(appealEvent(positive.user_id, positive.id, { reason })).rejects.toMatchObject({
-      code: 'INVALID_APPEAL',
+      code: 'APPEAL_NOT_ALLOWED',
     });
   });
 
@@ -310,7 +310,7 @@ describe('Appeal lifecycle (TASK-057–058)', () => {
       )
     ).rows[0]!;
     await expect(appealEvent(event.user_id, negative.id, { reason })).rejects.toMatchObject({
-      code: 'APPEAL_WINDOW_EXPIRED',
+      code: 'APPEAL_NOT_ALLOWED',
     });
   });
 

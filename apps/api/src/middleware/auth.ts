@@ -22,7 +22,6 @@ export interface RequestUser {
   status: 'active' | 'suspended' | 'deleted';
   sigma: string;
   q: string;
-  email_verified_at: Date | null;
   created_at: Date;
   updated_at: Date;
   deleted_at: Date | null;
@@ -50,7 +49,11 @@ declare global {
 }
 /* eslint-enable @typescript-eslint/no-namespace */
 
-export async function authenticate(req: Request, _res: Response, next: NextFunction): Promise<void> {
+export async function authenticate(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): Promise<void> {
   try {
     const token = req.cookies?.[config.SESSION_COOKIE_NAME];
     if (!token || typeof token !== 'string') {
@@ -80,7 +83,6 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
       status: 'active' | 'suspended' | 'deleted';
       sigma: string;
       q: string;
-      email_verified_at: Date | null;
       created_at: Date;
       updated_at: Date;
       deleted_at: Date | null;
@@ -89,7 +91,7 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
         s.id AS session_id, s.user_id AS session_user_id, s.token_hash AS session_token_hash,
         s.created_at AS session_created_at, s.expires_at, s.last_seen_at, s.user_agent, s.ip,
         u.id, u.username, u.email, u.password_hash, u.display_name, u.bio,
-        u.avatar_media_id, u.role, u.status, u.sigma, u.q, u.email_verified_at,
+        u.avatar_media_id, u.role, u.status, u.sigma, u.q,
         u.created_at, u.updated_at, u.deleted_at
       FROM sessions s
       JOIN users u ON u.id = s.user_id
@@ -136,7 +138,6 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
       status: row.status,
       sigma: row.sigma,
       q: row.q,
-      email_verified_at: row.email_verified_at,
       created_at: row.created_at,
       updated_at: row.updated_at,
       deleted_at: row.deleted_at,
@@ -161,7 +162,11 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   next();
 }
 
-export async function requireActive(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function requireActive(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
   await requireAuth(req, res, (err?: unknown) => {
     if (err) return next(err);
     if (!req.user) {
@@ -172,9 +177,6 @@ export async function requireActive(req: Request, res: Response, next: NextFunct
     }
     if (req.user.status !== 'active') {
       return next(new AppError(403, 'FORBIDDEN', 'Account is not active'));
-    }
-    if (config.REQUIRE_EMAIL_VERIFICATION && !req.user.email_verified_at) {
-      return next(new AppError(403, 'EMAIL_NOT_VERIFIED', 'Email verification required'));
     }
     next();
   });

@@ -8,18 +8,8 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { requireActive, authenticate } from '../../middleware/auth.js';
 import { postsLimiter } from '../../middleware/rateLimit.js';
 import { validate } from '../../middleware/validate.js';
-import {
-  createPostSchema,
-  editPostSchema,
-  listPostsQuerySchema,
-} from '@app/shared';
-import {
-  createPost,
-  getPostById,
-  editPost,
-  deletePost,
-  getUserPosts,
-} from './service.js';
+import { createPostSchema, editPostSchema, listPostsQuerySchema } from '@app/shared';
+import { createPost, getPostById, editPost, deletePost, getUserPosts } from './service.js';
 
 export const postsRouter = Router();
 
@@ -32,10 +22,7 @@ postsRouter.post(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const user = req.user!;
-      const post = await createPost(
-        { id: user.id, q: user.q, role: user.role },
-        req.body,
-      );
+      const post = await createPost({ id: user.id, q: user.q, role: user.role }, req.body);
       res.status(201).json(post);
     } catch (err) {
       next(err);
@@ -49,9 +36,7 @@ postsRouter.get(
   authenticate,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const viewer = req.user
-        ? { id: req.user.id, role: req.user.role }
-        : undefined;
+      const viewer = req.user ? { id: req.user.id, role: req.user.role } : undefined;
       const post = await getPostById(req.params.id as string, viewer);
       res.status(200).json(post);
     } catch (err) {
@@ -97,9 +82,7 @@ postsRouter.get(
   validate({ query: listPostsQuerySchema }),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const viewer = req.user
-        ? { id: req.user.id, role: req.user.role }
-        : undefined;
+      const viewer = req.user ? { id: req.user.id, role: req.user.role } : undefined;
       const query = req.query as unknown as { cursor?: string; limit?: number };
       const limit = query.limit ?? 20;
 

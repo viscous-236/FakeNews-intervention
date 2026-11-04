@@ -76,14 +76,12 @@ describe('Social flows (TASK-061–066)', () => {
       email: 'social_owner@example.com',
       password: 'password12345',
       displayName: 'Social Owner',
-      emailVerified: true,
     });
     const target = await createUser({
       username: 'social_target',
       email: 'social_target@example.com',
       password: 'password12345',
       displayName: 'Social Target',
-      emailVerified: true,
     });
     const cookie = await login(user.email, 'password12345', '198.51.100.10');
 
@@ -112,9 +110,7 @@ describe('Social flows (TASK-061–066)', () => {
       .set('Cookie', cookie);
     expect(block.status).toBe(204);
 
-    const profile = await request
-      .get(`/api/v1/users/${target.username}`)
-      .set('Cookie', cookie);
+    const profile = await request.get(`/api/v1/users/${target.username}`).set('Cookie', cookie);
     expect(profile.status).toBe(200);
     expect(profile.body.viewer).toEqual({ following: false, blocked: true });
 
@@ -137,21 +133,18 @@ describe('Social flows (TASK-061–066)', () => {
       email: 'suggest_viewer@example.com',
       password: 'password12345',
       displayName: 'Suggestion Viewer',
-      emailVerified: true,
     });
     const mutual = await createUser({
       username: 'suggest_mutual',
       email: 'suggest_mutual@example.com',
       password: 'password12345',
       displayName: 'Suggestion Mutual',
-      emailVerified: true,
     });
     const candidate = await createUser({
       username: 'suggest_candidate',
       email: 'suggest_candidate@example.com',
       password: 'password12345',
       displayName: 'Suggestion Candidate',
-      emailVerified: true,
     });
     await getTestPool().query(
       `INSERT INTO follows (follower_id, followee_id) VALUES ($1, $2), ($2, $3)`,
@@ -159,9 +152,7 @@ describe('Social flows (TASK-061–066)', () => {
     );
     const cookie = await login(viewer.email, 'password12345', '198.51.100.11');
 
-    const suggestions = await request
-      .get('/api/v1/users/suggestions')
-      .set('Cookie', cookie);
+    const suggestions = await request.get('/api/v1/users/suggestions').set('Cookie', cookie);
     expect(suggestions.status).toBe(200);
     expect(suggestions.body.items[0].id).toBe(candidate.id);
   });
@@ -172,7 +163,6 @@ describe('Social flows (TASK-061–066)', () => {
       email: 'search_author@example.com',
       password: 'password12345',
       displayName: 'Search Author',
-      emailVerified: true,
     });
     const postId = await insertPost(
       author.id,
@@ -199,21 +189,18 @@ describe('Social flows (TASK-061–066)', () => {
       password: 'password12345',
       displayName: 'Social Admin',
       role: 'admin',
-      emailVerified: true,
     });
     const author = await createUser({
       username: 'social_publisher',
       email: 'social_publisher@example.com',
       password: 'password12345',
       displayName: 'Social Publisher',
-      emailVerified: true,
     });
     const actor = await createUser({
       username: 'social_actor',
       email: 'social_actor@example.com',
       password: 'password12345',
       displayName: 'Social Actor',
-      emailVerified: true,
     });
     const postId = await insertPost(
       author.id,
@@ -289,23 +276,23 @@ describe('Social flows (TASK-061–066)', () => {
       password: 'password12345',
       displayName: 'Real Admin',
       role: 'admin',
-      emailVerified: true,
     });
     const author = await createUser({
       username: 'real_publisher',
       email: 'real_publisher@example.com',
       password: 'password12345',
       displayName: 'Real Publisher',
-      emailVerified: true,
     });
     const actor = await createUser({
       username: 'real_actor',
       email: 'real_actor@example.com',
       password: 'password12345',
       displayName: 'Real Actor',
-      emailVerified: true,
     });
-    const postId = await insertPost(author.id, 'This post is used to verify responsible reshare rewards.');
+    const postId = await insertPost(
+      author.id,
+      'This post is used to verify responsible reshare rewards.',
+    );
     await assessPost(postId, admin.id, 'real');
     const cookie = await login(actor.email, 'password12345', '198.51.100.13');
 

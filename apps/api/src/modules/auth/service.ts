@@ -27,7 +27,6 @@ import {
   queueOutboxEmail,
   findEmailTokenByHash,
   markEmailTokenUsed,
-  setUserEmailVerified,
   updateUserPassword,
   deleteAllUserSessions,
   deleteUserSessionsExcept,
@@ -111,7 +110,7 @@ export async function register(
   }
 
   return withTransaction(async (tx) => {
-    // 1. Create user with default sigma, unverified
+    // 1. Create user with default sigma (DEC-017: no email verification step)
     const userRow = await createUser(
       {
         username: input.username,
@@ -119,52 +118,15 @@ export async function register(
         password: input.password,
         displayName: input.displayName,
         sigma: config.SIGMA_DEFAULT,
-        emailVerified: false,
       },
       tx,
     );
 
-    // 2. Generate email verification token (24-hour expiry)
-    const rawVerifyToken = crypto.randomBytes(32).toString('base64url');
-    const verifyTokenHash = crypto
-      .createHash('sha256')
-      .update(rawVerifyToken)
-      .digest('hex');
-    const verifyExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    await createEmailToken(
-      userRow.id,
-      'verify_email',
-      verifyTokenHash,
-      verifyExpiry,
-      tx,
-    );
-
-    // 3. Queue verification email into transactional outbox
-    const verifyUrl = `${config.APP_ORIGIN}/verify-email?token=${rawVerifyToken}`;
-    await queueOutboxEmail(
-      userRow.email,
-      'Verify your email address',
-      `Welcome to FakeNews-intervention!\n\nPlease verify your email by clicking the link below:\n${verifyUrl}`,
-      tx,
-    );
-
-    // 4. Create active session
+    // 2. Create active session
     const rawSessionToken = crypto.randomBytes(32).toString('base64url');
-    const sessionTokenHash = crypto
-      .createHash('sha256')
-      .update(rawSessionToken)
-      .digest('hex');
-    const sessionExpiry = new Date(
-      Date.now() + config.SESSION_TTL_DAYS * 24 * 60 * 60 * 1000,
-    );
-    await createSession(
-      userRow.id,
-      sessionTokenHash,
-      sessionExpiry,
-      userAgent,
-      ip,
-      tx,
-    );
+    const sessionTokenHash = crypto.createHash('sha256').update(rawSessionToken).digest('hex');
+    const sessionExpiry = new Date(Date.now() + config.SESSION_TTL_DAYS * 24 * 60 * 60 * 1000);
+    await createSession(userRow.id, sessionTokenHash, sessionExpiry, userAgent, ip, tx);
 
     return {
       user: toMeUser(userRow),
@@ -208,20 +170,9 @@ export async function login(
 
   // 5. Create new session
   const rawSessionToken = crypto.randomBytes(32).toString('base64url');
-  const sessionTokenHash = crypto
-    .createHash('sha256')
-    .update(rawSessionToken)
-    .digest('hex');
-  const sessionExpiry = new Date(
-    Date.now() + config.SESSION_TTL_DAYS * 24 * 60 * 60 * 1000,
-  );
-  await createSession(
-    user.id,
-    sessionTokenHash,
-    sessionExpiry,
-    userAgent,
-    ip,
-  );
+  const sessionTokenHash = crypto.createHash('sha256').update(rawSessionToken).digest('hex');
+  const sessionExpiry = new Date(Date.now() + config.SESSION_TTL_DAYS * 24 * 60 * 60 * 1000);
+  await createSession(user.id, sessionTokenHash, sessionExpiry, userAgent, ip);
 
   return {
     user: toMeUser(user),
@@ -239,58 +190,6 @@ export async function logout(rawToken?: string): Promise<void> {
 // Token & Session operations (TASK-039)
 // ---------------------------------------------------------------------------
 
-export async function verifyEmail(token: string): Promise<void> {
-  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-  const tokenRow = await findEmailTokenByHash(tokenHash, 'verify_email');
-  if (
-    !tokenRow ||
-    tokenRow.used_at !== null ||
-    new Date(tokenRow.expires_at).getTime() < Date.now()
-  ) {
-    throw new AppError(
-      400,
-      'VALIDATION_ERROR',
-      'Invalid or expired verification token',
-    );
-  }
-
-  await withTransaction(async (tx) => {
-    await markEmailTokenUsed(tokenRow.id, tx);
-    await setUserEmailVerified(tokenRow.user_id, tx);
-  });
-}
-
-export async function resendVerification(userId: string): Promise<void> {
-  const user = await findUserById(userId);
-  if (!user || user.email_verified_at) {
-    return;
-  }
-
-  await withTransaction(async (tx) => {
-    const rawVerifyToken = crypto.randomBytes(32).toString('base64url');
-    const verifyTokenHash = crypto
-      .createHash('sha256')
-      .update(rawVerifyToken)
-      .digest('hex');
-    const verifyExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    await createEmailToken(
-      user.id,
-      'verify_email',
-      verifyTokenHash,
-      verifyExpiry,
-      tx,
-    );
-
-    const verifyUrl = `${config.APP_ORIGIN}/verify-email?token=${rawVerifyToken}`;
-    await queueOutboxEmail(
-      user.email,
-      'Verify your email address',
-      `Welcome to FakeNews-intervention!\n\nPlease verify your email by clicking the link below:\n${verifyUrl}`,
-      tx,
-    );
-  });
-}
-
 export async function forgotPassword(email: string): Promise<void> {
   const user = await findUserByIdentifier(email);
   if (!user || user.status === 'deleted' || user.deleted_at !== null) {
@@ -300,18 +199,9 @@ export async function forgotPassword(email: string): Promise<void> {
 
   await withTransaction(async (tx) => {
     const rawResetToken = crypto.randomBytes(32).toString('base64url');
-    const resetTokenHash = crypto
-      .createHash('sha256')
-      .update(rawResetToken)
-      .digest('hex');
+    const resetTokenHash = crypto.createHash('sha256').update(rawResetToken).digest('hex');
     const resetExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-    await createEmailToken(
-      user.id,
-      'reset_password',
-      resetTokenHash,
-      resetExpiry,
-      tx,
-    );
+    await createEmailToken(user.id, 'reset_password', resetTokenHash, resetExpiry, tx);
 
     const resetUrl = `${config.APP_ORIGIN}/reset-password?token=${rawResetToken}`;
     await queueOutboxEmail(
@@ -323,10 +213,7 @@ export async function forgotPassword(email: string): Promise<void> {
   });
 }
 
-export async function resetPassword(
-  token: string,
-  newPassword: string,
-): Promise<void> {
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
   const tokenRow = await findEmailTokenByHash(tokenHash, 'reset_password');
   if (
@@ -334,11 +221,7 @@ export async function resetPassword(
     tokenRow.used_at !== null ||
     new Date(tokenRow.expires_at).getTime() < Date.now()
   ) {
-    throw new AppError(
-      400,
-      'VALIDATION_ERROR',
-      'Invalid or expired reset token',
-    );
+    throw new AppError(400, 'VALIDATION_ERROR', 'Invalid or expired reset token');
   }
 
   const passwordHash = await hashPassword(newPassword);
@@ -361,16 +244,9 @@ export async function changePassword(
     throw new AppError(401, 'UNAUTHENTICATED', 'User not found');
   }
 
-  const validPassword = await verifyPassword(
-    user.password_hash,
-    currentPassword,
-  );
+  const validPassword = await verifyPassword(user.password_hash, currentPassword);
   if (!validPassword) {
-    throw new AppError(
-      401,
-      'INVALID_CREDENTIALS',
-      'Current password is incorrect',
-    );
+    throw new AppError(401, 'INVALID_CREDENTIALS', 'Current password is incorrect');
   }
 
   const passwordHash = await hashPassword(newPassword);
@@ -407,10 +283,7 @@ export async function listSessions(
   }));
 }
 
-export async function revokeSession(
-  userId: string,
-  targetSessionId: string,
-): Promise<void> {
+export async function revokeSession(userId: string, targetSessionId: string): Promise<void> {
   const deleted = await deleteSessionById(targetSessionId, userId);
   if (!deleted) {
     throw new AppError(404, 'NOT_FOUND', 'Session not found');

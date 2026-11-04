@@ -45,7 +45,6 @@ describe('Account Deletion & Data Export (TASK-046, RUL-022, SEC-014)', () => {
       email: 'del_wrongpwd@example.com',
       password: 'correctPassword123',
       displayName: 'Wrong Password User',
-      emailVerified: true,
     });
 
     const loginRes = await request
@@ -71,7 +70,6 @@ describe('Account Deletion & Data Export (TASK-046, RUL-022, SEC-014)', () => {
       email: 'to_delete@example.com',
       password: 'password123',
       displayName: 'Soon Deleted',
-      emailVerified: true,
     });
 
     const pool = getTestPool();
@@ -127,10 +125,7 @@ describe('Account Deletion & Data Export (TASK-046, RUL-022, SEC-014)', () => {
     expect(delRes.status).toBe(204);
 
     // Verify DB anonymization
-    const userCheck = await pool.query(
-      `SELECT * FROM users WHERE id = $1`,
-      [user.id],
-    );
+    const userCheck = await pool.query(`SELECT * FROM users WHERE id = $1`, [user.id]);
     const row = userCheck.rows[0]!;
     expect(row.status).toBe('deleted');
     expect(row.deleted_at).not.toBeNull();
@@ -142,17 +137,13 @@ describe('Account Deletion & Data Export (TASK-046, RUL-022, SEC-014)', () => {
     expect(row.password_hash).toMatch(/^DELETED_/);
 
     // Verify sessions purged
-    const sessCheck = await pool.query(
-      `SELECT count(*) FROM sessions WHERE user_id = $1`,
-      [user.id],
-    );
+    const sessCheck = await pool.query(`SELECT count(*) FROM sessions WHERE user_id = $1`, [
+      user.id,
+    ]);
     expect(parseInt(sessCheck.rows[0]!.count, 10)).toBe(0);
 
     // Verify post still exists in DB
-    const postCheck = await pool.query(
-      `SELECT id, status FROM posts WHERE id = $1`,
-      [postId],
-    );
+    const postCheck = await pool.query(`SELECT id, status FROM posts WHERE id = $1`, [postId]);
     expect(postCheck.rows.length).toBe(1);
 
     // Verify ledger row still exists in DB
@@ -177,7 +168,6 @@ describe('Account Deletion & Data Export (TASK-046, RUL-022, SEC-014)', () => {
       email: 'export_user@example.com',
       password: 'password123',
       displayName: 'Export User',
-      emailVerified: true,
     });
 
     const otherUser = await createUser({
@@ -185,7 +175,6 @@ describe('Account Deletion & Data Export (TASK-046, RUL-022, SEC-014)', () => {
       email: 'export_other@example.com',
       password: 'password123',
       displayName: 'Other Export User',
-      emailVerified: true,
     });
 
     const pool = getTestPool();
@@ -228,10 +217,10 @@ describe('Account Deletion & Data Export (TASK-046, RUL-022, SEC-014)', () => {
     );
 
     // 4. Follows (user follows otherUser, otherUser follows user)
-    await pool.query(
-      `INSERT INTO follows (follower_id, followee_id) VALUES ($1, $2), ($2, $1)`,
-      [user.id, otherUser.id],
-    );
+    await pool.query(`INSERT INTO follows (follower_id, followee_id) VALUES ($1, $2), ($2, $1)`, [
+      user.id,
+      otherUser.id,
+    ]);
 
     // 5. Notification
     await pool.query(

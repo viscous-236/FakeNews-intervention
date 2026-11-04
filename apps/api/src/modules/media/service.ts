@@ -27,15 +27,9 @@ export interface MediaUploadResult {
   height: number;
 }
 
-const ALLOWED_MIME_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-]);
+const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
-export async function processAndUploadMedia(
-  input: ProcessMediaInput,
-): Promise<MediaUploadResult> {
+export async function processAndUploadMedia(input: ProcessMediaInput): Promise<MediaUploadResult> {
   // 1. Verify MIME type per REQ-022 / plan Section 1.7
   if (!ALLOWED_MIME_TYPES.has(input.mimeType)) {
     throw new AppError(
@@ -56,6 +50,15 @@ export async function processAndUploadMedia(
 
     if (!metadata.width || !metadata.height) {
       throw new AppError(400, 'VALIDATION_ERROR', 'Could not read image dimensions');
+    }
+
+    // SEC-008: trust the decoded format, not the declared MIME type.
+    if (!metadata.format || !['jpeg', 'png', 'webp'].includes(metadata.format)) {
+      throw new AppError(
+        415,
+        'UNSUPPORTED_MEDIA_TYPE',
+        'Only JPEG, PNG, and WebP images are supported',
+      );
     }
 
     // Cap longest side at 4096 px

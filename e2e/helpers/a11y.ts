@@ -15,7 +15,10 @@ export async function checkA11y(page: Page, pageName: string): Promise<void> {
   );
 
   if (seriousOrCritical.length > 0) {
-    console.warn(`Accessibility violations found on ${pageName}:`, seriousOrCritical.map(v => ({ id: v.id, impact: v.impact, description: v.description })));
+    console.warn(
+      `Accessibility violations found on ${pageName}:`,
+      seriousOrCritical.map((v) => ({ id: v.id, impact: v.impact, description: v.description })),
+    );
   }
 
   expect(

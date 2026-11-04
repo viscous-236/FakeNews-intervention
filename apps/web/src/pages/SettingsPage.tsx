@@ -1,516 +1,459 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useRef, useState } from 'react';
+import { Download, Upload } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import {
+  flatten,
+  useBlock,
+  useBlocks,
+  useChangePassword,
+  useDeleteAccount,
+  useRevokeSession,
+  useSessions,
+  useUpdateProfile,
+  useUploadMedia,
+} from '../api/hooks';
+import { api, errorMessage } from '../api/client';
+import { copy } from '../copy';
+import { formatDateTime } from '../lib/format';
 import { Avatar } from '../components/ui/Avatar';
 import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { copy } from '../copy';
-import { api } from '../api/client';
-import {
-  User,
-  Shield,
-  Smartphone,
-  Ban,
-  Download,
-  AlertOctagon,
-  Upload,
-  CheckCircle2,
-} from 'lucide-react';
+import { CharCount, Input, Textarea } from '../components/ui/Field';
+import { ConfirmDialog } from '../components/ui/Modal';
+import { Pill } from '../components/ui/Pill';
+import { EmptyState, ErrorState, Notice, PageHeader, Skeleton } from '../components/ui/Page';
 
-interface SessionItem {
-  id: string;
-  createdAt: string;
-  lastSeenAt: string;
-  userAgent: string;
-  ip: string;
-  isCurrent: boolean;
-}
-
-interface BlockItem {
-  id: string;
-  blockedUser: {
-    id: string;
-    username: string;
-    displayName: string;
-    avatarUrl: string | null;
-  };
-  createdAt: string;
-}
-
-export const SettingsPage: React.FC = () => {
-  const { me, refreshMe, logout } = useAuth();
-
-  // Profile form state
-  const [displayName, setDisplayName] = useState(me?.displayName || '');
-  const [bio, setBio] = useState(me?.bio || '');
-  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
-  const [profileSuccess, setProfileSuccess] = useState(false);
-  const [profileError, setProfileError] = useState<string | null>(null);
-
-  // Password form state
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [passwordSuccess, setPasswordSuccess] = useState(false);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-
-  // Sessions state
-  const [sessions, setSessions] = useState<SessionItem[]>([]);
-  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
-
-  // Blocks state
-  const [blocks, setBlocks] = useState<BlockItem[]>([]);
-
-  // Account deletion state
-  const [deletePassword, setDeletePassword] = useState('');
-  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  // Load sessions and blocks
-  useEffect(() => {
-    let mounted = true;
-    setIsLoadingSessions(true);
-
-    api
-      .get<{ sessions: SessionItem[] }>('/api/v1/auth/sessions')
-      .then((res: { sessions: SessionItem[] }) => {
-        if (mounted) setSessions(res.sessions || []);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (mounted) setIsLoadingSessions(false);
-      });
-
-    api
-      .get<{ blocks: BlockItem[] }>('/api/v1/users/me/blocks')
-      .then((res: { blocks: BlockItem[] }) => {
-        if (mounted) setBlocks(res.blocks || []);
-      })
-      .catch(() => {});
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setProfileError(null);
-    setProfileSuccess(false);
-
-    try {
-      setIsUpdatingProfile(true);
-      await api.patch('/api/v1/users/me', {
-        displayName: displayName.trim(),
-        bio: bio.trim(),
-      });
-      await refreshMe();
-      setProfileSuccess(true);
-    } catch (err: unknown) {
-      setProfileError(err instanceof Error ? err.message : copy.error);
-    } finally {
-      setIsUpdatingProfile(false);
-    }
-  };
-
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await api.upload<{ url: string }>('/api/v1/media/upload', formData);
-
-      await api.patch('/api/v1/users/me', {
-        avatarUrl: res.url,
-      });
-      await refreshMe();
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Failed to update avatar photo.');
-    }
-  };
-
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPasswordError(null);
-    setPasswordSuccess(false);
-
-    if (newPassword.length < 10) {
-      setPasswordError('New password must be at least 10 characters long.');
-      return;
-    }
-
-    try {
-      setIsChangingPassword(true);
-      await api.post('/api/v1/auth/change-password', {
-        currentPassword,
-        newPassword,
-      });
-      setCurrentPassword('');
-      setNewPassword('');
-      setPasswordSuccess(true);
-    } catch (err: unknown) {
-      setPasswordError(err instanceof Error ? err.message : copy.error);
-    } finally {
-      setIsChangingPassword(false);
-    }
-  };
-
-  const handleRevokeSession = async (sessionId: string) => {
-    try {
-      await api.delete(`/api/v1/auth/sessions/${sessionId}`);
-      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Failed to revoke session.');
-    }
-  };
-
-  const handleUnblock = async (username: string) => {
-    try {
-      await api.delete(`/api/v1/users/${username}/block`);
-      setBlocks((prev) => prev.filter((b) => b.blockedUser.username !== username));
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Failed to unblock.');
-    }
-  };
-
-  const handleExportData = async () => {
-    try {
-      const data = await api.get('/api/v1/users/me/export');
-      const blob = new Blob([JSON.stringify(data, null, 2)], {
-        type: 'application/json',
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `fakenews-intervention-export-${me?.username || 'user'}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Export failed.');
-    }
-  };
-
-  const handleDeleteAccount = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setDeleteError(null);
-    if (!window.confirm('Are you ABSOLUTELY certain you wish to delete your account? This action cannot be undone.')) {
-      return;
-    }
-
-    try {
-      setIsDeletingAccount(true);
-      await api.delete('/api/v1/users/me', { password: deletePassword });
-      await logout();
-    } catch (err: unknown) {
-      setDeleteError(err instanceof Error ? err.message : copy.error);
-    } finally {
-      setIsDeletingAccount(false);
-    }
-  };
-
+/** Settings (TASK-085): two-column rows, one save per panel. */
+export function SettingsPage(): React.ReactElement | null {
+  const { me, logout } = useAuth();
   if (!me) return null;
+  return (
+    <div className="mx-auto max-w-sheet">
+      <PageHeader title={copy.settings.title} />
+      <div className="divide-y divide-border">
+        <ProfileSection />
+        <EmailSection />
+        <PasswordSection />
+        <SessionsSection />
+        <BlocksSection />
+        <ExportSection username={me.username} />
+        <DangerSection onDeleted={() => void logout()} />
+      </div>
+    </div>
+  );
+}
+
+function Row({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}): React.ReactElement {
+  return (
+    <section
+      className="grid gap-4 py-8 md:grid-cols-[minmax(0,420px)_minmax(0,1fr)] md:gap-10"
+      aria-label={title}
+    >
+      <div>
+        <h2 className="text-section text-ink">{title}</h2>
+        <p className="mt-1 text-body text-muted">{description}</p>
+      </div>
+      <div className="rounded-sheet bg-raised p-4 sm:p-5">{children}</div>
+    </section>
+  );
+}
+
+function ProfileSection(): React.ReactElement {
+  const { me } = useAuth();
+  const update = useUpdateProfile();
+  const upload = useUploadMedia();
+  const [displayName, setDisplayName] = useState(me?.displayName ?? '');
+  const [bio, setBio] = useState(me?.bio ?? '');
+  const [status, setStatus] = useState<{ tone: 'positive' | 'negative'; text: string } | null>(
+    null,
+  );
+  const fileInput = useRef<HTMLInputElement>(null);
+  if (!me) return <></>;
+
+  function save(e: React.FormEvent) {
+    e.preventDefault();
+    setStatus(null);
+    update.mutate(
+      { displayName: displayName.trim(), bio: bio.trim() },
+      {
+        onSuccess: () => setStatus({ tone: 'positive', text: copy.settings.profile.saved }),
+        onError: (err) =>
+          setStatus({ tone: 'negative', text: errorMessage(err, copy.common.error) }),
+      },
+    );
+  }
+
+  async function changePhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (fileInput.current) fileInput.current.value = '';
+    if (!file) return;
+    setStatus(null);
+    try {
+      const media = await upload.mutateAsync({ file, kind: 'avatar' });
+      await update.mutateAsync({ avatarMediaId: media.id });
+      setStatus({ tone: 'positive', text: copy.settings.profile.saved });
+    } catch (err) {
+      setStatus({ tone: 'negative', text: errorMessage(err, copy.common.error) });
+    }
+  }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8">
-      <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-        {copy.settings.title}
-      </h1>
-
-      {/* Profile Section */}
-      <section className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-sm space-y-6">
-        <div className="flex items-center gap-2 pb-3 border-b border-neutral-100 dark:border-neutral-700">
-          <User className="w-5 h-5 text-primary-600 dark:text-primary-400" aria-hidden="true" />
-          <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
-            {copy.settings.profileSection}
-          </h2>
-        </div>
-
-        {profileSuccess && (
-          <div className="rounded-lg bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-900/60 p-3 text-xs text-green-700 dark:text-green-300 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
-            <span>Profile information updated successfully.</span>
-          </div>
-        )}
-
-        {profileError && (
-          <div className="rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 p-3 text-xs text-red-700 dark:text-red-300">
-            {profileError}
-          </div>
-        )}
-
-        {/* Avatar Upload */}
+    <Row title={copy.settings.profile.title} description={copy.settings.profile.description}>
+      <form onSubmit={save} className="space-y-4">
+        {status ? <Notice tone={status.tone}>{status.text}</Notice> : null}
         <div className="flex items-center gap-4">
           <Avatar
-            username={me.username}
-            displayName={me.displayName}
             avatarUrl={me.avatarUrl}
+            displayName={me.displayName}
+            username={me.username}
             size="lg"
           />
           <div>
             <input
+              ref={fileInput}
               type="file"
-              ref={fileInputRef}
-              accept="image/png,image/jpeg,image/webp"
-              onChange={handleAvatarUpload}
+              accept="image/jpeg,image/png,image/webp"
               className="hidden"
+              onChange={(e) => void changePhoto(e)}
             />
             <Button
-              type="button"
-              variant="outline"
+              variant="secondary"
               size="sm"
-              onClick={() => fileInputRef.current?.click()}
-              icon={<Upload className="w-4 h-4" aria-hidden="true" />}
+              icon={<Upload />}
+              onClick={() => fileInput.current?.click()}
+              isLoading={upload.isPending}
             >
-              Change Profile Photo
+              {copy.settings.profile.changePhoto}
             </Button>
-            <p className="mt-1 text-[11px] text-neutral-500">
-              WebP, PNG or JPEG. Re-encoded to WebP (REQ-022).
-            </p>
+            <p className="mt-1 text-small text-muted">{copy.settings.profile.photoHint}</p>
           </div>
         </div>
+        <Input
+          label={copy.settings.profile.displayName}
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          maxLength={50}
+          required
+        />
+        <Textarea
+          label={copy.settings.profile.bio}
+          hint={copy.settings.profile.bioHint}
+          value={bio}
+          onChange={(e) => setBio(e.target.value)}
+          maxLength={160}
+          rows={3}
+          trailing={<CharCount value={bio.length} max={160} />}
+        />
+        <div className="flex justify-end">
+          <Button
+            type="submit"
+            variant="primary"
+            isLoading={update.isPending}
+            disabled={!displayName.trim()}
+          >
+            {copy.common.save}
+          </Button>
+        </div>
+      </form>
+    </Row>
+  );
+}
 
-        <form onSubmit={handleUpdateProfile} className="space-y-4">
-          <Input
-            id="settings-displayName"
-            label={copy.auth.displayNameLabel}
-            type="text"
-            required
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-          />
+function EmailSection(): React.ReactElement {
+  const { me } = useAuth();
+  if (!me) return <></>;
+  return (
+    <Row title={copy.settings.email.title} description={copy.settings.email.description}>
+      <p className="text-body text-ink">{me.email}</p>
+    </Row>
+  );
+}
 
-          <div>
-            <label
-              htmlFor="settings-bio"
-              className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1"
+function PasswordSection(): React.ReactElement {
+  const change = useChangePassword();
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [status, setStatus] = useState<{ tone: 'positive' | 'negative'; text: string } | null>(
+    null,
+  );
+  const lengthError =
+    next && (next.length < 10 || next.length > 128) ? copy.auth.errors.passwordLength : null;
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (lengthError) return;
+    setStatus(null);
+    change.mutate(
+      { currentPassword: current, newPassword: next },
+      {
+        onSuccess: () => {
+          setCurrent('');
+          setNext('');
+          setStatus({ tone: 'positive', text: copy.settings.password.updated });
+        },
+        onError: (err) =>
+          setStatus({ tone: 'negative', text: errorMessage(err, copy.common.error) }),
+      },
+    );
+  }
+
+  return (
+    <Row title={copy.settings.password.title} description={copy.settings.password.description}>
+      <form onSubmit={submit} className="space-y-4">
+        {status ? <Notice tone={status.tone}>{status.text}</Notice> : null}
+        <Input
+          label={copy.auth.currentPasswordLabel}
+          type="password"
+          autoComplete="current-password"
+          value={current}
+          onChange={(e) => setCurrent(e.target.value)}
+          required
+        />
+        <Input
+          label={copy.auth.newPasswordLabel}
+          type="password"
+          autoComplete="new-password"
+          value={next}
+          onChange={(e) => setNext(e.target.value)}
+          hint={copy.auth.passwordHint}
+          error={lengthError}
+          required
+        />
+        <div className="flex justify-end">
+          <Button
+            type="submit"
+            variant="primary"
+            isLoading={change.isPending}
+            disabled={!current || !next || Boolean(lengthError)}
+          >
+            {copy.settings.password.update}
+          </Button>
+        </div>
+      </form>
+    </Row>
+  );
+}
+
+function SessionsSection(): React.ReactElement {
+  const sessions = useSessions();
+  const revoke = useRevokeSession();
+  return (
+    <Row title={copy.settings.sessions.title} description={copy.settings.sessions.description}>
+      {sessions.isLoading ? (
+        <Skeleton lines={3} />
+      ) : sessions.isError ? (
+        <ErrorState
+          message={errorMessage(sessions.error, copy.common.error)}
+          onRetry={() => void sessions.refetch()}
+          compact
+        />
+      ) : (
+        <ul className="divide-y divide-border">
+          {(sessions.data ?? []).map((s) => (
+            <li
+              key={s.id}
+              className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
             >
-              {copy.settings.bioLabel}
-            </label>
-            <textarea
-              id="settings-bio"
-              rows={3}
-              maxLength={200}
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-          </div>
-
-          <Button
-            type="submit"
-            variant="primary"
-            isLoading={isUpdatingProfile}
-          >
-            {copy.settings.updateProfileBtn}
-          </Button>
-        </form>
-      </section>
-
-      {/* Security & Password Section */}
-      <section className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-sm space-y-6">
-        <div className="flex items-center gap-2 pb-3 border-b border-neutral-100 dark:border-neutral-700">
-          <Shield className="w-5 h-5 text-primary-600 dark:text-primary-400" aria-hidden="true" />
-          <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
-            {copy.settings.securitySection}
-          </h2>
-        </div>
-
-        {passwordSuccess && (
-          <div className="rounded-lg bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-900/60 p-3 text-xs text-green-700 dark:text-green-300 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
-            <span>Password updated successfully. Other active sessions were invalidated.</span>
-          </div>
-        )}
-
-        {passwordError && (
-          <div className="rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 p-3 text-xs text-red-700 dark:text-red-300">
-            {passwordError}
-          </div>
-        )}
-
-        <form onSubmit={handleChangePassword} className="space-y-4">
-          <Input
-            id="settings-currentPassword"
-            label={copy.auth.currentPasswordLabel}
-            type="password"
-            autoComplete="current-password"
-            required
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-          />
-
-          <Input
-            id="settings-newPassword"
-            label={copy.auth.newPasswordLabel}
-            type="password"
-            autoComplete="new-password"
-            required
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            helperText="Minimum 10 characters (SEC-023)"
-          />
-
-          <Button
-            type="submit"
-            variant="primary"
-            isLoading={isChangingPassword}
-          >
-            {copy.settings.changePasswordBtn}
-          </Button>
-        </form>
-      </section>
-
-      {/* Active Sessions Section */}
-      <section className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-sm space-y-4">
-        <div className="flex items-center gap-2 pb-3 border-b border-neutral-100 dark:border-neutral-700">
-          <Smartphone className="w-5 h-5 text-primary-600 dark:text-primary-400" aria-hidden="true" />
-          <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
-            {copy.settings.sessionsSection}
-          </h2>
-        </div>
-
-        {isLoadingSessions ? (
-          <p className="text-xs text-neutral-500">{copy.loading}</p>
-        ) : (
-          <div className="divide-y divide-neutral-100 dark:divide-neutral-700">
-            {sessions.map((sess) => (
-              <div key={sess.id} className="py-3 flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
-                    {sess.userAgent.slice(0, 50)}…
-                  </p>
-                  <p className="text-[11px] text-neutral-500">
-                    IP: {sess.ip} • Last seen {new Date(sess.lastSeenAt).toLocaleDateString()}
-                  </p>
-                </div>
-                {sess.isCurrent ? (
-                  <span className="text-xs bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300 px-2 py-0.5 rounded-full font-medium">
-                    {copy.settings.currentSessionBadge}
-                  </span>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleRevokeSession(sess.id)}
-                  >
-                    {copy.settings.revokeSession}
-                  </Button>
-                )}
+              <div className="min-w-0">
+                <p className="truncate text-body text-ink">
+                  {s.userAgent
+                    ? describeUserAgent(s.userAgent)
+                    : copy.settings.sessions.unknownDevice}
+                </p>
+                <p className="text-small text-muted">
+                  {s.ip ?? copy.common.none} ·{' '}
+                  {copy.settings.sessions.lastSeen(formatDateTime(s.lastSeenAt))}
+                </p>
               </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Blocked Accounts Section */}
-      <section className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-sm space-y-4">
-        <div className="flex items-center gap-2 pb-3 border-b border-neutral-100 dark:border-neutral-700">
-          <Ban className="w-5 h-5 text-primary-600 dark:text-primary-400" aria-hidden="true" />
-          <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
-            {copy.settings.blocksSection}
-          </h2>
-        </div>
-
-        {blocks.length === 0 ? (
-          <p className="text-xs text-neutral-500">{copy.settings.noBlocks}</p>
-        ) : (
-          <div className="divide-y divide-neutral-100 dark:divide-neutral-700">
-            {blocks.map((b) => (
-              <div key={b.id} className="py-2.5 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Avatar
-                    username={b.blockedUser.username}
-                    displayName={b.blockedUser.displayName}
-                    avatarUrl={b.blockedUser.avatarUrl}
-                    size="sm"
-                  />
-                  <div>
-                    <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
-                      {b.blockedUser.displayName}
-                    </p>
-                    <p className="text-[11px] text-neutral-500">
-                      @{b.blockedUser.username}
-                    </p>
-                  </div>
-                </div>
-
+              {s.isCurrent ? (
+                <Pill tone="accent">{copy.settings.sessions.current}</Pill>
+              ) : (
                 <Button
                   size="sm"
-                  variant="outline"
-                  onClick={() => handleUnblock(b.blockedUser.username)}
+                  variant="secondary"
+                  onClick={() => revoke.mutate(s.id)}
+                  isLoading={revoke.isPending && revoke.variables === s.id}
                 >
-                  {copy.settings.unblockBtn}
+                  {copy.settings.sessions.revoke}
                 </Button>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* GDPR Data Export Section */}
-      <section className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-sm space-y-3">
-        <div className="flex items-center gap-2 pb-3 border-b border-neutral-100 dark:border-neutral-700">
-          <Download className="w-5 h-5 text-primary-600 dark:text-primary-400" aria-hidden="true" />
-          <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
-            {copy.settings.exportSection}
-          </h2>
-        </div>
-
-        <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
-          {copy.settings.exportDescription}
-        </p>
-
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleExportData}
-          icon={<Download className="w-4 h-4" aria-hidden="true" />}
-        >
-          {copy.settings.downloadExportBtn}
-        </Button>
-      </section>
-
-      {/* Danger Zone: Account Deletion */}
-      <section className="bg-red-50/50 dark:bg-red-950/20 rounded-xl border border-red-200 dark:border-red-900/60 p-6 shadow-sm space-y-4">
-        <div className="flex items-center gap-2 pb-3 border-b border-red-200 dark:border-red-900/40 text-red-700 dark:text-red-400">
-          <AlertOctagon className="w-5 h-5 shrink-0" aria-hidden="true" />
-          <h2 className="text-base font-semibold">
-            {copy.settings.dangerZone}
-          </h2>
-        </div>
-
-        <p className="text-xs text-red-700 dark:text-red-300 leading-relaxed">
-          {copy.settings.deleteDescription}
-        </p>
-
-        {deleteError && (
-          <div className="rounded-lg bg-red-100 dark:bg-red-950/60 p-2 text-xs text-red-800 dark:text-red-200">
-            {deleteError}
-          </div>
-        )}
-
-        <form onSubmit={handleDeleteAccount} className="space-y-3 max-w-sm">
-          <Input
-            id="delete-confirm-password"
-            label={copy.settings.deleteConfirmPassword}
-            type="password"
-            required
-            value={deletePassword}
-            onChange={(e) => setDeletePassword(e.target.value)}
-          />
-
-          <Button
-            type="submit"
-            variant="danger"
-            isLoading={isDeletingAccount}
-          >
-            {copy.settings.deleteAccountBtn}
-          </Button>
-        </form>
-      </section>
-    </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Row>
   );
-};
+}
+
+function describeUserAgent(ua: string): string {
+  const browser = /Edg\//.test(ua)
+    ? 'Edge'
+    : /Chrome\//.test(ua)
+      ? 'Chrome'
+      : /Firefox\//.test(ua)
+        ? 'Firefox'
+        : /Safari\//.test(ua)
+          ? 'Safari'
+          : 'Browser';
+  const os = /Windows/.test(ua)
+    ? 'Windows'
+    : /Mac OS X/.test(ua)
+      ? 'macOS'
+      : /Android/.test(ua)
+        ? 'Android'
+        : /iPhone|iPad/.test(ua)
+          ? 'iOS'
+          : /Linux/.test(ua)
+            ? 'Linux'
+            : '';
+  return os ? `${browser} on ${os}` : browser;
+}
+
+function BlocksSection(): React.ReactElement {
+  const blocks = useBlocks();
+  const block = useBlock();
+  const items = flatten(blocks.data);
+  return (
+    <Row title={copy.settings.blocks.title} description={copy.settings.blocks.description}>
+      {blocks.isLoading ? (
+        <Skeleton lines={2} />
+      ) : blocks.isError ? (
+        <ErrorState
+          message={errorMessage(blocks.error, copy.common.error)}
+          onRetry={() => void blocks.refetch()}
+          compact
+        />
+      ) : items.length === 0 ? (
+        <EmptyState>{copy.settings.blocks.empty}</EmptyState>
+      ) : (
+        <ul className="divide-y divide-border">
+          {items.map((u) => (
+            <li
+              key={u.id}
+              className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                <Avatar
+                  avatarUrl={u.avatarUrl}
+                  displayName={u.displayName}
+                  username={u.username}
+                  size="sm"
+                />
+                <div className="min-w-0">
+                  <p className="truncate text-body text-ink">{u.displayName}</p>
+                  <p className="truncate text-small text-muted">@{u.username}</p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => block.mutate({ username: u.username, block: false })}
+                isLoading={block.isPending && block.variables?.username === u.username}
+              >
+                {copy.settings.blocks.unblock}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Row>
+  );
+}
+
+function ExportSection({ username }: { username: string }): React.ReactElement {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function download() {
+    setBusy(true);
+    setError(null);
+    try {
+      const data = await api.get<unknown>('/api/v1/users/me/export');
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `export-${username}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(errorMessage(err, copy.common.error));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Row title={copy.settings.export.title} description={copy.settings.export.description}>
+      {error ? (
+        <div className="mb-3">
+          <ErrorState message={error} compact />
+        </div>
+      ) : null}
+      <Button
+        variant="secondary"
+        icon={<Download />}
+        onClick={() => void download()}
+        isLoading={busy}
+      >
+        {copy.settings.export.download}
+      </Button>
+    </Row>
+  );
+}
+
+function DangerSection({ onDeleted }: { onDeleted: () => void }): React.ReactElement {
+  const del = useDeleteAccount();
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <Row title={copy.settings.danger.title} description={copy.settings.danger.description}>
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setConfirm(true);
+        }}
+      >
+        {error ? <ErrorState message={error} compact /> : null}
+        <Input
+          label={copy.settings.danger.confirmPassword}
+          type="password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+        <div className="flex justify-end">
+          <Button type="submit" variant="danger" disabled={!password}>
+            {copy.settings.danger.delete}
+          </Button>
+        </div>
+      </form>
+      <ConfirmDialog
+        isOpen={confirm}
+        onClose={() => setConfirm(false)}
+        title={copy.settings.danger.confirmTitle}
+        body={copy.settings.danger.confirmBody}
+        confirmLabel={copy.settings.danger.delete}
+        danger
+        isLoading={del.isPending}
+        onConfirm={() =>
+          del.mutate(password, {
+            onSuccess: onDeleted,
+            onError: (err) => {
+              setConfirm(false);
+              setError(errorMessage(err, copy.common.error));
+            },
+          })
+        }
+      />
+    </Row>
+  );
+}

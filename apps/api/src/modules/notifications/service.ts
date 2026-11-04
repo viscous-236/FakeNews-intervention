@@ -41,17 +41,18 @@ export function toNotificationItem(row: NotificationJoinedRow): NotificationItem
   return {
     id: row.id,
     type: row.type,
-    actor: row.actor_id && row.actor_username && row.actor_display_name
-      ? {
-          id: row.actor_id,
-          username: row.actor_username,
-          displayName: row.actor_display_name,
-          avatarUrl: row.actor_avatar_media_id
-            ? `${config.S3_PUBLIC_BASE_URL}/${row.actor_avatar_media_id}`
-            : null,
-           tier: tierOfValue(row.actor_q ?? 0),
-        }
-      : null,
+    actor:
+      row.actor_id && row.actor_username && row.actor_display_name
+        ? {
+            id: row.actor_id,
+            username: row.actor_username,
+            displayName: row.actor_display_name,
+            avatarUrl: row.actor_avatar_media_id
+              ? `${config.S3_PUBLIC_BASE_URL}/${row.actor_avatar_media_id}`
+              : null,
+            tier: tierOfValue(row.actor_q ?? 0),
+          }
+        : null,
     postId: row.post_id,
     payload: row.payload ?? {},
     createdAt: new Date(row.created_at).toISOString(),
@@ -118,10 +119,7 @@ export async function listNotifications(
   };
 }
 
-export async function getUnreadCount(
-  userId: string,
-  client?: PoolClient,
-): Promise<number> {
+export async function getUnreadCount(userId: string, client?: PoolClient): Promise<number> {
   return countUnreadNotifications(userId, client);
 }
 

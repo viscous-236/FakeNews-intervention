@@ -56,3 +56,10 @@ playwright-report/
 
 # Temp
 *.tmp
+
+# design tooling output
+.taste-skill/
+.impeccable/
+
+# Playwright session state
+e2e/.auth/

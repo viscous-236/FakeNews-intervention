@@ -1,313 +1,320 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
+import { ArrowLeft, Send } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useWebSocket, WsMessageEvent } from '../hooks/useWebSocket';
+import {
+  flatten,
+  keys,
+  useConversations,
+  useMarkThreadRead,
+  useSendMessage,
+  useThread,
+} from '../api/hooks';
+import { useWebSocket, type WsEvent } from '../hooks/useWebSocket';
+import { copy } from '../copy';
+import { errorMessage } from '../api/client';
+import { formatRelative, formatTime } from '../lib/format';
+import type { MessageItem, Page } from '../types';
 import { Avatar } from '../components/ui/Avatar';
 import { Button } from '../components/ui/Button';
-import { copy } from '../copy';
-import { ConversationItem, MessageItem, PaginatedResponse } from '../types';
-import { api } from '../api/client';
-import { Mail, Send, ArrowLeft, Loader2 } from 'lucide-react';
+import { CountBadge } from '../components/ui/Pill';
+import { EmptyState, ErrorState, LoadMore, LoadingRows, PageHeader } from '../components/ui/Page';
 
-export const MessagesPage: React.FC = () => {
-  const { username: routeUsername } = useParams<{ username?: string }>();
-  const navigate = useNavigate();
+export function MessagesPage(): React.ReactElement {
+  const { username } = useParams<{ username?: string }>();
   const { me } = useAuth();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const conversations = useConversations();
+  const convItems = flatten(conversations.data);
+  const peer = convItems.find((c) => c.user.username === username)?.user;
 
-  const [conversations, setConversations] = useState<ConversationItem[]>([]);
-  const [activeUsername, setActiveUsername] = useState<string | null>(routeUsername || null);
-  const [messages, setMessages] = useState<MessageItem[]>([]);
-  const [newMessageText, setNewMessageText] = useState('');
-  const [isLoadingConvs, setIsLoadingConvs] = useState(true);
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
-  const [isSending, setIsSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (routeUsername) {
-      setActiveUsername(routeUsername);
-    }
-  }, [routeUsername]);
-
-  // Load conversations
-  const fetchConversations = useCallback(async () => {
-    try {
-      const res = await api.get<{ items: ConversationItem[] }>('/api/v1/messages/conversations');
-      setConversations(res.items || []);
-    } catch {
-      // ignore
-    } finally {
-      setIsLoadingConvs(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchConversations();
-  }, [fetchConversations]);
-
-  // Load thread messages when active conversation changes
-  useEffect(() => {
-    let mounted = true;
-    if (!activeUsername) return;
-
-    setIsLoadingMessages(true);
-    setError(null);
-
-    api
-      .get<PaginatedResponse<MessageItem>>(`/api/v1/messages/with/${activeUsername}`)
-      .then((res) => {
-        if (!mounted) return;
-        setMessages((res.items || []).slice().reverse()); // Chronological
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
-      })
-      .catch((err: unknown) => {
-        if (!mounted) return;
-        setError(err instanceof Error ? err.message : copy.error);
-      })
-      .finally(() => {
-        if (mounted) setIsLoadingMessages(false);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, [activeUsername]);
-
-  // Listen to incoming WebSocket events
-  useWebSocket(
-    useCallback(
-      (evt: WsMessageEvent) => {
-        if (evt.type === 'message') {
-          const incoming = evt.data.message as MessageItem | undefined;
-          const senderUsername = (evt.data.sender as { username?: string })?.username;
-          if (incoming && senderUsername === activeUsername) {
-            setMessages((prev) => [...prev, incoming]);
-            setTimeout(() => {
-              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-            }, 100);
-          }
-          // Refresh conversation list to show updated snippets & unread counts
-          void fetchConversations();
+  const onEvent = useCallback(
+    (evt: WsEvent) => {
+      if (evt.type === 'message') {
+        const m = evt.message;
+        // Find which thread this belongs to via the conversation list.
+        const conv = convItems.find((c) => c.user.id === m.senderId);
+        if (conv) {
+          qc.setQueryData<InfiniteData<Page<MessageItem>>>(
+            keys.thread(conv.user.username),
+            (old) =>
+              old
+                ? {
+                    ...old,
+                    pages: old.pages.map((p, i) =>
+                      i === 0 ? { ...p, items: [m, ...p.items] } : p,
+                    ),
+                  }
+                : old,
+          );
         }
-      },
-      [activeUsername, fetchConversations]
-    )
+        void qc.invalidateQueries({ queryKey: keys.conversations });
+        if (!conv) void qc.invalidateQueries({ queryKey: ['thread'] });
+      } else if (evt.type === 'messages_read') {
+        void qc.invalidateQueries({ queryKey: ['thread'] });
+      }
+    },
+    [convItems, qc],
   );
-
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeUsername || !newMessageText.trim() || isSending) return;
-
-    try {
-      setIsSending(true);
-      const res = await api.post<MessageItem | { message: MessageItem }>(
-        `/api/v1/messages/with/${activeUsername}`,
-        {
-          body: newMessageText.trim(),
-        },
-      );
-      const msg = res && 'message' in res && res.message ? res.message : (res as MessageItem);
-      setMessages((prev) => [...prev, msg]);
-      setNewMessageText('');
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 50);
-      void fetchConversations();
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : copy.error);
-    } finally {
-      setIsSending(false);
-    }
-  };
-
-  const activePeer = conversations.find((c) => c.peer.username === activeUsername)?.peer;
+  const socket = useWebSocket(onEvent);
 
   return (
-    <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-neutral-200 dark:border-neutral-700 shadow-sm overflow-hidden h-[75vh] flex">
-      {/* Left Column: Conversations List */}
-      <div
-        className={`w-full md:w-80 border-r border-neutral-200 dark:border-neutral-700 flex flex-col ${
-          activeUsername ? 'hidden md:flex' : 'flex'
-        }`}
-      >
-        <div className="p-4 border-b border-neutral-200 dark:border-neutral-700 font-bold text-sm text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
-          <Mail className="w-4 h-4 text-primary-600" aria-hidden="true" />
-          <span>{copy.app.nav.messages}</span>
-        </div>
-
-        <div className="flex-1 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-700">
-          {isLoadingConvs ? (
-            <div className="py-12 text-center">
-              <Loader2 className="w-6 h-6 animate-spin mx-auto text-primary-600" aria-hidden="true" />
-            </div>
-          ) : conversations.length === 0 ? (
-            <p className="p-6 text-center text-xs text-neutral-400">
-              No active conversations yet. Visit an author's profile to start a direct discussion.
-            </p>
+    <div>
+      <PageHeader
+        title={copy.messages.title}
+        subtitle={
+          <span className="flex items-center gap-2">
+            <span
+              aria-hidden="true"
+              className={`inline-block h-2 w-2 rounded-full ${socket === 'open' ? 'bg-positive' : 'bg-control'}`}
+            />
+            {socket === 'open' ? copy.messages.connected : copy.messages.reconnecting}
+          </span>
+        }
+      />
+      <div className="grid min-h-[60vh] gap-6 md:grid-cols-[300px_minmax(0,1fr)]">
+        <section
+          aria-label={copy.messages.title}
+          className={`${username ? 'hidden md:block' : ''}`}
+        >
+          {conversations.isLoading ? (
+            <LoadingRows rows={3} />
+          ) : conversations.isError ? (
+            <ErrorState
+              message={errorMessage(conversations.error, copy.common.error)}
+              onRetry={() => void conversations.refetch()}
+            />
+          ) : convItems.length === 0 ? (
+            <EmptyState>{copy.messages.empty}</EmptyState>
           ) : (
-            conversations.map((conv) => (
-              <button
-                key={conv.id}
-                type="button"
-                onClick={() => {
-                  setActiveUsername(conv.peer.username);
-                  navigate(`/messages/${conv.peer.username}`);
-                }}
-                className={`w-full text-left p-3.5 flex items-center gap-3 transition-colors ${
-                  activeUsername === conv.peer.username
-                    ? 'bg-neutral-100 dark:bg-neutral-700'
-                    : 'hover:bg-neutral-50 dark:hover:bg-neutral-750'
-                }`}
-              >
-                <Avatar
-                  username={conv.peer.username}
-                  displayName={conv.peer.displayName}
-                  avatarUrl={conv.peer.avatarUrl}
-                  size="md"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 truncate">
-                      {conv.peer.displayName}
-                    </p>
-                    {conv.unreadCount > 0 && (
-                      <span className="px-1.5 py-0.5 rounded-full bg-primary-600 text-white text-[10px] font-bold">
-                        {conv.unreadCount}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-neutral-400 truncate mt-0.5">
-                    {conv.lastMessage?.body || `@${conv.peer.username}`}
-                  </p>
-                </div>
-              </button>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* Right Column: Chat thread */}
-      <div
-        className={`flex-1 flex flex-col ${
-          !activeUsername ? 'hidden md:flex' : 'flex'
-        }`}
-      >
-        {activeUsername ? (
-          <>
-            {/* Header */}
-            <div className="p-3.5 border-b border-neutral-200 dark:border-neutral-700 flex items-center gap-3 bg-neutral-50/50 dark:bg-neutral-850">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveUsername(null);
-                  navigate('/messages');
-                }}
-                className="md:hidden p-1 text-neutral-500 rounded focus:outline-none"
-                aria-label="Back to conversations"
-              >
-                <ArrowLeft className="w-5 h-5" aria-hidden="true" />
-              </button>
-
-              <div className="flex items-center gap-2.5">
-                <Avatar
-                  username={activePeer?.username || activeUsername}
-                  displayName={activePeer?.displayName || activeUsername}
-                  avatarUrl={activePeer?.avatarUrl || null}
-                  size="sm"
-                />
-                <div>
-                  <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
-                    {activePeer?.displayName || activeUsername}
-                  </p>
-                  <p className="text-[10px] text-neutral-400">@{activeUsername}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Messages Scroll Area */}
-            <div className="flex-1 p-4 overflow-y-auto space-y-3">
-              {isLoadingMessages ? (
-                <div className="py-12 text-center">
-                  <Loader2 className="w-6 h-6 animate-spin mx-auto text-primary-600" aria-hidden="true" />
-                </div>
-              ) : error ? (
-                <div className="p-3 rounded-lg bg-red-50 text-red-700 text-xs text-center">
-                  {error}
-                </div>
-              ) : messages.length === 0 ? (
-                <p className="text-center text-xs text-neutral-400 py-12">
-                  Say hello! Direct messages never affect reputation scores (DEC-006).
-                </p>
-              ) : (
-                messages.map((m) => {
-                  const isMine = m.senderId === me?.id;
+            <>
+              <ul className="divide-y divide-rule">
+                {convItems.map((c) => {
+                  const active = c.user.username === username;
                   return (
-                    <div
-                      key={m.id}
-                      className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div
-                        className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed ${
-                          isMine
-                            ? 'bg-primary-600 text-white rounded-br-xs'
-                            : 'bg-neutral-100 dark:bg-neutral-700 text-neutral-900 dark:text-neutral-100 rounded-bl-xs'
-                        }`}
+                    <li key={c.user.id}>
+                      <Link
+                        to={`/messages/${c.user.username}`}
+                        aria-current={active ? 'page' : undefined}
+                        className={`-mx-2 flex items-center gap-3 rounded-control px-2 py-3 ${active ? 'bg-active' : 'hover:bg-raised/60'}`}
                       >
-                        <p className="whitespace-pre-line">{m.body}</p>
-                        <time
-                          className={`block text-[10px] mt-1 text-right ${
-                            isMine ? 'text-primary-200' : 'text-neutral-400'
-                          }`}
-                        >
-                          {new Date(m.createdAt).toLocaleTimeString(undefined, {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </time>
-                      </div>
-                    </div>
+                        <Avatar
+                          avatarUrl={c.user.avatarUrl}
+                          displayName={c.user.displayName}
+                          username={c.user.username}
+                          size="sm"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <p
+                              className={`truncate text-body ${c.unreadCount ? 'font-semibold text-ink' : 'text-ink'}`}
+                            >
+                              {c.user.displayName}
+                            </p>
+                            <time
+                              dateTime={c.lastMessage.createdAt}
+                              className="shrink-0 text-small text-muted"
+                            >
+                              {formatRelative(c.lastMessage.createdAt)}
+                            </time>
+                          </div>
+                          <p
+                            className={`truncate text-small ${c.unreadCount ? 'text-ink' : 'text-muted'}`}
+                          >
+                            {c.lastMessage.senderId === me?.id ? 'You: ' : ''}
+                            {c.lastMessage.body}
+                          </p>
+                        </div>
+                        <CountBadge
+                          count={c.unreadCount}
+                          label={copy.messages.unread(c.unreadCount)}
+                        />
+                      </Link>
+                    </li>
                   );
-                })
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Input Bar */}
-            <form
-              onSubmit={handleSendMessage}
-              className="p-3 border-t border-neutral-200 dark:border-neutral-700 flex items-center gap-2"
-            >
-              <input
-                type="text"
-                placeholder="Type a direct message…"
-                maxLength={500}
-                value={newMessageText}
-                onChange={(e) => setNewMessageText(e.target.value)}
-                className="flex-1 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3.5 py-2 text-xs text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                })}
+              </ul>
+              <LoadMore
+                hasMore={Boolean(conversations.hasNextPage)}
+                isLoading={conversations.isFetchingNextPage}
+                onLoad={() => void conversations.fetchNextPage()}
               />
-              <Button
-                type="submit"
-                size="sm"
-                variant="primary"
-                disabled={!newMessageText.trim() || isSending}
-                isLoading={isSending}
-                icon={<Send className="w-3.5 h-3.5" aria-hidden="true" />}
-              >
-                Send
-              </Button>
-            </form>
-          </>
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-neutral-400 text-xs">
-            <Mail className="w-12 h-12 text-neutral-300 dark:text-neutral-600 mb-3" aria-hidden="true" />
-            <p>Select a conversation from the left to read and send messages.</p>
-          </div>
-        )}
+            </>
+          )}
+        </section>
+
+        <section
+          aria-label={username ? `@${username}` : copy.messages.selectConversation}
+          className={`${username ? '' : 'hidden md:flex'} flex min-h-[60vh] flex-col rounded-card border border-border`}
+        >
+          {username ? (
+            <Thread
+              username={username}
+              peer={peer}
+              meId={me?.id ?? ''}
+              onBack={() => navigate('/messages')}
+            />
+          ) : (
+            <div className="flex flex-1 items-center justify-center p-6 text-center text-body text-muted">
+              {copy.messages.selectConversation}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
-};
+}
+
+function Thread({
+  username,
+  peer,
+  meId,
+  onBack,
+}: {
+  username: string;
+  peer: { displayName: string; avatarUrl: string | null; username: string } | undefined;
+  meId: string;
+  onBack: () => void;
+}): React.ReactElement {
+  const thread = useThread(username);
+  const send = useSendMessage(username);
+  const markRead = useMarkThreadRead();
+  const [text, setText] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const bottom = useRef<HTMLDivElement>(null);
+  const messages = [...flatten(thread.data)].reverse(); // API is newest first; show oldest at top
+  const lastId = messages[messages.length - 1]?.id;
+  const hasUnreadFromPeer = messages.some((m) => m.senderId !== meId && !m.readAt);
+
+  useEffect(() => {
+    bottom.current?.scrollIntoView({ block: 'end' });
+  }, [lastId]);
+
+  const markReadRef = useRef(markRead.mutate);
+  markReadRef.current = markRead.mutate;
+  useEffect(() => {
+    if (hasUnreadFromPeer) markReadRef.current(username);
+  }, [hasUnreadFromPeer, username]);
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const body = text.trim();
+    if (!body || body.length > 1000) return;
+    setError(null);
+    send.mutate(body, {
+      onSuccess: () => setText(''),
+      onError: (err) => setError(errorMessage(err, copy.common.error)),
+    });
+  }
+
+  return (
+    <>
+      <header className="flex items-center gap-3 border-b border-border px-4 py-3">
+        <button
+          type="button"
+          onClick={onBack}
+          className="grid h-8 w-8 place-items-center rounded-control text-muted hover:bg-raised md:hidden"
+          aria-label={copy.messages.backToList}
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        </button>
+        <Avatar
+          avatarUrl={peer?.avatarUrl ?? null}
+          displayName={peer?.displayName ?? username}
+          username={username}
+          size="sm"
+        />
+        <div className="min-w-0">
+          <Link
+            to={`/u/${username}`}
+            className="block truncate text-body font-medium text-ink hover:underline"
+          >
+            {peer?.displayName ?? username}
+          </Link>
+          <p className="truncate text-small text-muted">@{username}</p>
+        </div>
+      </header>
+
+      <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
+        {thread.hasNextPage ? (
+          <div className="flex justify-center">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => void thread.fetchNextPage()}
+              isLoading={thread.isFetchingNextPage}
+            >
+              {copy.common.loadMore}
+            </Button>
+          </div>
+        ) : null}
+        {thread.isLoading ? (
+          <LoadingRows rows={2} />
+        ) : thread.isError ? (
+          <ErrorState
+            message={errorMessage(thread.error, copy.common.error)}
+            onRetry={() => void thread.refetch()}
+          />
+        ) : messages.length === 0 ? (
+          <p className="py-8 text-center text-body text-muted">{copy.messages.noMessages}</p>
+        ) : (
+          messages.map((m) => {
+            const mine = m.senderId === meId;
+            return (
+              <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`max-w-[75%] rounded-card px-3 py-2 ${mine ? 'bg-primary text-primary-ink' : 'bg-raised text-ink'}`}
+                >
+                  <p className="whitespace-pre-wrap break-words text-body">{m.body}</p>
+                  <p
+                    className={`mt-1 text-right text-[11px] ${mine ? 'text-white/70' : 'text-muted'}`}
+                  >
+                    <time dateTime={m.createdAt}>{formatTime(m.createdAt)}</time>
+                    {mine && m.readAt ? ` · ${copy.messages.read}` : ''}
+                  </p>
+                </div>
+              </div>
+            );
+          })
+        )}
+        <div ref={bottom} />
+      </div>
+
+      <form onSubmit={submit} className="border-t border-border p-3">
+        {error ? <p className="mb-2 text-small text-negative">{error}</p> : null}
+        <div className="flex items-end gap-2">
+          <label htmlFor="message-input" className="sr-only">
+            {copy.messages.placeholder}
+          </label>
+          <textarea
+            id="message-input"
+            rows={1}
+            maxLength={1000}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                e.currentTarget.form?.requestSubmit();
+              }
+            }}
+            placeholder={copy.messages.placeholder}
+            className="block max-h-32 min-h-[36px] flex-1 resize-y rounded-control border border-control bg-surface px-3 py-2 text-body placeholder:text-faint"
+          />
+          <Button
+            type="submit"
+            variant="primary"
+            icon={<Send />}
+            disabled={!text.trim()}
+            isLoading={send.isPending}
+          >
+            {copy.messages.send}
+          </Button>
+        </div>
+        <p className="mt-2 text-small text-muted">{copy.messages.policyNote}</p>
+      </form>
+    </>
+  );
+}

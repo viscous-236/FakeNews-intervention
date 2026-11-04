@@ -26,6 +26,9 @@ export type UserListQuery = z.infer<typeof userListQuerySchema>;
 
 export const auditQuerySchema = adminListQuerySchema
   .extend({
+    entityType: z.string().trim().min(1).max(100).optional(),
+    entityId: z.string().uuid().optional(),
+    actorId: z.string().uuid().optional(),
     action: z.string().trim().min(1).max(100).optional(),
   })
   .strict();
@@ -47,3 +50,11 @@ export const suspendUserSchema = z
   .strict();
 
 export type SuspendUserInput = z.infer<typeof suspendUserSchema>;
+
+export const adminDeletePostSchema = z
+  .object({
+    reason: z.string().trim().min(5).max(1000),
+  })
+  .strict();
+
+export type AdminDeletePostInput = z.infer<typeof adminDeletePostSchema>;

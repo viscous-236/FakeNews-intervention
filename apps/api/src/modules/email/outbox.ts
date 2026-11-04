@@ -21,6 +21,10 @@ export function getTransporter(): Transporter {
       host: config.SMTP_HOST,
       port: config.SMTP_PORT,
       secure: config.SMTP_SECURE,
+      // Section 1.1: API → SMTP times out after 15 s; the outbox retries.
+      connectionTimeout: 15_000,
+      greetingTimeout: 15_000,
+      socketTimeout: 15_000,
       auth: config.SMTP_USER
         ? {
             user: config.SMTP_USER,

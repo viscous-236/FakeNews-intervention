@@ -144,6 +144,11 @@ export async function supersedeAssessment(
   let reversalsCreated = 0;
 
   for (const ev of oldEventsRes.rows) {
+    // DEC-011: a counted REVERSAL is never reversed again. Reversing it would
+    // re-apply the original penalty or reward on top of the new assessment's
+    // own events and make a three-deep chain (fake → real → fake) net -2 for
+    // one false post instead of the flat -1 of DEC-004.
+    if (ev.kind === 'REVERSAL' && ev.status === 'counted') continue;
     if (ev.status === 'eligible' || ev.status === 'held') {
       // Void the event
       await tx.query(
@@ -173,14 +178,7 @@ export async function supersedeAssessment(
            user_id, post_id, assessment_id, kind, value, status, wave_id, reverses_event_id
          ) VALUES ($1, $2, $3, 'REVERSAL', $4, 'eligible', $5, $6)
          ON CONFLICT (reverses_event_id) WHERE kind = 'REVERSAL' AND status <> 'voided' DO NOTHING`,
-        [
-          ev.user_id,
-          ev.post_id,
-          newAssessment.id,
-          reversalValue,
-          openWaveId,
-          ev.id,
-        ],
+        [ev.user_id, ev.post_id, newAssessment.id, reversalValue, openWaveId, ev.id],
       );
       reversalsCreated++;
 

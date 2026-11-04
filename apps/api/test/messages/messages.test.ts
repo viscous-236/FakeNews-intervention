@@ -125,9 +125,7 @@ describe('Direct messages (TASK-071–072)', () => {
       messageIds: [sent.body.id],
     });
 
-    const afterRead = await request
-      .get('/api/v1/messages/conversations')
-      .set('Cookie', bobCookie);
+    const afterRead = await request.get('/api/v1/messages/conversations').set('Cookie', bobCookie);
     expect(afterRead.body.items[0].unreadCount).toBe(0);
 
     bobSocket.close();
@@ -138,17 +136,17 @@ describe('Direct messages (TASK-071–072)', () => {
     const sender = await createTestUser({ username: 'message_block_sender' });
     const target = await createTestUser({ username: 'message_block_target' });
     const senderCookie = await session(sender.id);
-    await getTestPool().query(
-      `INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)`,
-      [target.id, sender.id],
-    );
+    await getTestPool().query(`INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)`, [
+      target.id,
+      sender.id,
+    ]);
 
     const blocked = await request
       .post(`/api/v1/messages/with/${target.username}`)
       .set('Origin', config.APP_ORIGIN)
       .set('Cookie', senderCookie)
       .send({ body: 'This message must be rejected.' });
-    expect(blocked.status).toBe(403);
+    expect(blocked.status).toBe(404);
 
     await getTestPool().query(`UPDATE users SET status = 'suspended' WHERE id = $1`, [sender.id]);
     const suspended = await request

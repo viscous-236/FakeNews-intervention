@@ -29,22 +29,18 @@ describe('Auth Module (TEST-040 through TEST-045)', () => {
     await closeTestPool();
   });
 
-  it('TEST-040: Register creates user with sigma = SIGMA_DEFAULT, q = 0.000, unverified email and queued verification mail', async () => {
-    const res = await request
-      .post('/api/v1/auth/register')
-      .set('Origin', config.APP_ORIGIN)
-      .send({
-        username: 'alice_040',
-        email: 'alice040@example.com',
-        password: 'password12345',
-        displayName: 'Alice 040',
-      });
+  it('TEST-040: Register creates user with sigma = SIGMA_DEFAULT, q = 0.000, a session, and no verification mail (DEC-017)', async () => {
+    const res = await request.post('/api/v1/auth/register').set('Origin', config.APP_ORIGIN).send({
+      username: 'alice_040',
+      email: 'alice040@example.com',
+      password: 'password12345',
+      displayName: 'Alice 040',
+    });
 
     expect(res.status).toBe(201);
     expect(res.body.user).toBeDefined();
     expect(res.body.user.username).toBe('alice_040');
     expect(res.body.user.email).toBe('alice040@example.com');
-    expect(res.body.user.emailVerified).toBe(false);
     expect(res.body.user.score.q).toBe('0.000');
     expect(res.body.user.score.sigma).toBe(config.SIGMA_DEFAULT.toFixed(3));
     expect(res.body.user.score.tier).toBe('neutral');
@@ -57,21 +53,19 @@ describe('Auth Module (TEST-040 through TEST-045)', () => {
     expect(cookieStr.toLowerCase()).toContain('httponly');
     expect(cookieStr.toLowerCase()).toContain('samesite=lax');
 
-    // DB inspection: email token and email outbox queued
+    // DB inspection: no email token and nothing queued in the outbox
     const pool = getTestPool();
     const tokens = await pool.query<{ purpose: string }>(
       `SELECT purpose FROM email_tokens WHERE user_id = $1`,
       [res.body.user.id],
     );
-    expect(tokens.rows).toHaveLength(1);
-    expect(tokens.rows[0]!.purpose).toBe('verify_email');
+    expect(tokens.rows).toHaveLength(0);
 
     const outbox = await pool.query<{ to_email: string; status: string }>(
       `SELECT to_email, status FROM email_outbox WHERE to_email = $1`,
       ['alice040@example.com'],
     );
-    expect(outbox.rows).toHaveLength(1);
-    expect(outbox.rows[0]!.status).toBe('queued');
+    expect(outbox.rows).toHaveLength(0);
   });
 
   it('TEST-041: Duplicate username or email (case-insensitive) returns 409 USERNAME_TAKEN or EMAIL_TAKEN', async () => {

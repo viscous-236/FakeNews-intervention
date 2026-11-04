@@ -7,20 +7,12 @@ import { emitNotification } from '../notifications/bus.js';
 import { insertNotification } from '../notifications/repo.js';
 import { toNotificationItem, type NotificationItem } from '../notifications/service.js';
 import { tierOfValue } from '../../scoring/tier.js';
-import {
-  findPostById,
-  insertPost,
-  softDeletePostRow,
-} from '../posts/repo.js';
+import { findPostById, insertPost, softDeletePostRow } from '../posts/repo.js';
 import { serializePost, type PostOutput } from '../posts/service.js';
 import { retractReshareEventOnDelete, syncReshareEventOnCreate } from '../../scoring/events.js';
 import type { ReshareInput } from '@app/shared';
 
-async function assertNotBlocked(
-  tx: PoolClient,
-  userId: string,
-  authorId: string,
-): Promise<void> {
+async function assertNotBlocked(tx: PoolClient, userId: string, authorId: string): Promise<void> {
   const result = await tx.query(
     `SELECT 1 FROM blocks
       WHERE (blocker_id = $1 AND blocked_id = $2)
@@ -41,7 +33,12 @@ export async function createReshare(
   let pendingNotification: NotificationItem | null = null;
   const result = await withTransaction(async (tx) => {
     const original = await findPostById(originalPostId, tx);
-    if (!original || original.kind !== 'original' || original.status === 'deleted' || original.deleted_at) {
+    if (
+      !original ||
+      original.kind !== 'original' ||
+      original.status === 'deleted' ||
+      original.deleted_at
+    ) {
       throw new AppError(404, 'NOT_FOUND', 'Post not found');
     }
     if (original.status === 'held') {
@@ -102,7 +99,8 @@ export async function createReshare(
     return serializePost(reshare, { id: user.id, role: user.role }, false, tx);
   });
 
-  if (notificationTarget && pendingNotification) emitNotification(notificationTarget, pendingNotification);
+  if (notificationTarget && pendingNotification)
+    emitNotification(notificationTarget, pendingNotification);
   return result;
 }
 
@@ -122,7 +120,11 @@ export async function deleteReshare(userId: string, targetId: string): Promise<v
         [userId, target.id],
       );
       reshareId = result.rows[0]?.id;
-    } else if (target?.kind === 'reshare' && target.author_id === userId && target.reshare_of_post_id) {
+    } else if (
+      target?.kind === 'reshare' &&
+      target.author_id === userId &&
+      target.reshare_of_post_id
+    ) {
       reshareId = target.id;
       originalId = target.reshare_of_post_id;
     }

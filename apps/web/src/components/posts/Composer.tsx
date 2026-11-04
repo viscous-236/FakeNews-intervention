@@ -1,257 +1,223 @@
-import React, { useState, useRef } from 'react';
+import React, { useRef, useState } from 'react';
+import { Image as ImageIcon, Link2, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { Avatar } from '../ui/Avatar';
-import { Button } from '../ui/Button';
 import { copy } from '../../copy';
-import { Post } from '../../types';
-import { api } from '../../api/client';
-import { Image as ImageIcon, X, AlertTriangle, Send, Link as LinkIcon, Loader2 } from 'lucide-react';
+import { errorMessage } from '../../api/client';
+import { useCreatePost, useUploadMedia } from '../../api/hooks';
+import { isValidHttpUrl } from '../../lib/format';
+import type { Post } from '../../types';
+import { Avatar } from '../ui/Avatar';
+import { Button, IconButton } from '../ui/Button';
+import { ErrorState, Notice } from '../ui/Page';
 
 interface ComposerProps {
-  onPostCreated?: (newPost: Post) => void;
+  onPostCreated?: (post: Post) => void;
   placeholder?: string;
-  className?: string;
 }
 
-export const Composer: React.FC<ComposerProps> = ({
+const MAX_IMAGES = 4;
+const ACCEPT = 'image/jpeg,image/png,image/webp';
+
+/** Composer (TASK-080). The post is created by POST /posts; images go through POST /media first. */
+export function Composer({
   onPostCreated,
   placeholder = copy.composer.placeholder,
-  className = '',
-}) => {
-  const { me } = useAuth();
+}: ComposerProps): React.ReactElement | null {
+  const { me, canAct } = useAuth();
   const [body, setBody] = useState('');
   const [sourceUrl, setSourceUrl] = useState('');
-  const [showSourceInput, setShowSourceInput] = useState(false);
-  const [mediaIds, setMediaIds] = useState<string[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<Array<{ id: string; url: string }>>([]);
-  const [isUploading, setIsUploading] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSource, setShowSource] = useState(false);
+  const [images, setImages] = useState<Array<{ id: string; url: string }>>([]);
   const [error, setError] = useState<string | null>(null);
-
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const createPost = useCreatePost();
+  const upload = useUploadMedia();
 
   if (!me) return null;
 
-  const charLength = body.trim().length;
-  const isValidLength = charLength >= 20 && charLength <= 500;
-  const isLowTier = me.score?.tier === 'low';
+  const length = body.trim().length;
+  const validLength = length >= 20 && length <= 500;
+  const urlValue = sourceUrl.trim();
+  const urlOk = !urlValue || isValidHttpUrl(urlValue);
+  const canSubmit = canAct && validLength && urlOk && !createPost.isPending && !upload.isPending;
 
-  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    if (imagePreviews.length + files.length > 4) {
-      setError('You can attach a maximum of 4 images per post.');
+  async function pickImages(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (fileInput.current) fileInput.current.value = '';
+    if (!files.length) return;
+    if (images.length + files.length > MAX_IMAGES) {
+      setError(copy.composer.tooManyImages);
       return;
     }
-
-    setIsUploading(true);
     setError(null);
-
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (!file) continue;
-        const formData = new FormData();
-        formData.append('file', file);
-
-        const res = await api.upload<{ id: string; url: string }>('/api/v1/media/upload', formData);
-        setImagePreviews((prev) => [...prev, { id: res.id, url: res.url }]);
-        setMediaIds((prev) => [...prev, res.id]);
+    for (const file of files) {
+      try {
+        const res = await upload.mutateAsync({ file, kind: 'post_image' });
+        setImages((prev) => [...prev, { id: res.id, url: res.url }]);
+      } catch (err) {
+        setError(errorMessage(err, copy.common.error));
+        break;
       }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to upload image.');
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  };
+  }
 
-  const handleRemoveImage = (idToRemove: string) => {
-    setImagePreviews((prev) => prev.filter((img) => img.id !== idToRemove));
-    setMediaIds((prev) => prev.filter((id) => id !== idToRemove));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!isValidLength || isSubmitting || isUploading) return;
-
+    if (!canSubmit) return;
     setError(null);
-    setIsSubmitting(true);
-
-    try {
-      const res = await api.post<Post | { post: Post }>('/api/v1/posts', {
-        kind: 'original',
+    createPost.mutate(
+      {
         body: body.trim(),
-        sourceUrl: sourceUrl.trim() ? sourceUrl.trim() : undefined,
-        mediaIds: mediaIds.length > 0 ? mediaIds : undefined,
-      });
-
-      setBody('');
-      setSourceUrl('');
-      setShowSourceInput(false);
-      setImagePreviews([]);
-      setMediaIds([]);
-      const created = res && 'post' in res && res.post ? res.post : (res as Post);
-      onPostCreated?.(created);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : copy.error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+        ...(urlValue ? { sourceUrl: urlValue } : {}),
+        ...(images.length ? { mediaIds: images.map((i) => i.id) } : {}),
+      },
+      {
+        onSuccess: (post) => {
+          setBody('');
+          setSourceUrl('');
+          setShowSource(false);
+          setImages([]);
+          onPostCreated?.(post);
+        },
+        onError: (err) => setError(errorMessage(err, copy.common.error)),
+      },
+    );
+  }
 
   return (
-    <div
-      className={`bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 shadow-sm p-4 ${className}`}
+    <form
+      onSubmit={submit}
+      className="border-b border-border pb-4"
+      aria-label={copy.composer.publish}
     >
-      {isLowTier && (
-        <div
-          role="alert"
-          className="mb-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 p-2.5 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2"
-        >
-          <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
-          <span>{copy.composer.lowTierWarning}</span>
+      {me.score.tier === 'low' ? (
+        <div className="mb-3">
+          <Notice tone="warning">{copy.composer.lowTierWarning}</Notice>
         </div>
-      )}
-
-      {error && (
-        <div
-          role="alert"
-          className="mb-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 p-2.5 text-xs text-red-700 dark:text-red-300"
-        >
-          {error}
+      ) : null}
+      {error ? (
+        <div className="mb-3">
+          <ErrorState message={error} compact />
         </div>
-      )}
+      ) : null}
 
-      <form onSubmit={handleSubmit}>
-        <div className="flex gap-3">
-          <Avatar
-            username={me.username}
-            displayName={me.displayName}
-            avatarUrl={me.avatarUrl}
-            size="md"
+      <div className="flex gap-3">
+        <Avatar
+          avatarUrl={me.avatarUrl}
+          displayName={me.displayName}
+          username={me.username}
+          className="mt-1"
+        />
+        <div className="min-w-0 flex-1">
+          <label htmlFor="composer-body" className="sr-only">
+            {copy.composer.bodyLabel}
+          </label>
+          <textarea
+            id="composer-body"
+            rows={3}
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder={placeholder}
+            maxLength={500}
+            disabled={!canAct}
+            className="block w-full resize-y border-0 bg-transparent p-0 py-1.5 text-prose text-ink placeholder:text-faint focus:outline-none disabled:text-muted"
           />
 
-          <div className="flex-1">
-            <label htmlFor="composer-textarea" className="sr-only">
-              {placeholder}
-            </label>
-            <textarea
-              id="composer-textarea"
-              rows={3}
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder={placeholder}
-              maxLength={500}
-              className="w-full resize-none border-0 bg-transparent p-0 text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 focus:ring-0 focus:outline-none"
-            />
+          {showSource ? (
+            <div className="mt-2">
+              <label htmlFor="composer-source" className="sr-only">
+                {copy.composer.sourceUrlLabel}
+              </label>
+              <input
+                id="composer-source"
+                type="url"
+                inputMode="url"
+                value={sourceUrl}
+                onChange={(e) => setSourceUrl(e.target.value)}
+                placeholder={copy.composer.sourceUrlPlaceholder}
+                aria-invalid={!urlOk || undefined}
+                className={`h-9 w-full rounded-control border bg-surface px-3 text-body placeholder:text-faint ${urlOk ? 'border-control' : 'border-negative'}`}
+              />
+              {!urlOk ? (
+                <p className="mt-1 text-small text-negative">{copy.composer.sourceUrlInvalid}</p>
+              ) : null}
+            </div>
+          ) : null}
 
-            {showSourceInput && (
-              <div className="mt-2 flex items-center gap-1.5 border-b border-neutral-200 dark:border-neutral-700 pb-2">
-                <LinkIcon className="w-3.5 h-3.5 text-neutral-400 shrink-0" aria-hidden="true" />
-                <input
-                  type="url"
-                  placeholder={copy.composer.sourceUrlPlaceholder}
-                  value={sourceUrl}
-                  onChange={(e) => setSourceUrl(e.target.value)}
-                  className="w-full bg-transparent text-xs text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none"
-                />
-              </div>
-            )}
-
-            {imagePreviews.length > 0 && (
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {imagePreviews.map((img) => (
-                  <div key={img.id} className="relative rounded-lg overflow-hidden border border-neutral-200 dark:border-neutral-700 aspect-video bg-neutral-100 dark:bg-neutral-900">
-                    <img
-                      src={img.url}
-                      alt="Uploaded preview"
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveImage(img.id)}
-                      className="absolute top-1 right-1 bg-black/70 hover:bg-black text-white p-1 rounded-full transition-colors focus:outline-none"
-                      aria-label={copy.composer.removeImage}
-                    >
-                      <X className="w-3 h-3" aria-hidden="true" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {isUploading && (
-              <div className="mt-2 flex items-center gap-2 text-xs text-neutral-500">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-primary-600" aria-hidden="true" />
-                <span>Uploading media…</span>
-              </div>
-            )}
-
-            <div className="mt-3 pt-2 border-t border-neutral-100 dark:border-neutral-700 flex items-center justify-between">
-              <div className="flex items-center gap-1">
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  multiple
-                  onChange={handleImageSelect}
-                  className="hidden"
-                  id="composer-file-input"
-                />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={imagePreviews.length >= 4 || isUploading}
-                  className="p-2 text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors disabled:opacity-50 min-h-[44px] min-w-[44px] flex items-center justify-center"
-                  aria-label={copy.composer.attachImage}
+          {images.length ? (
+            <ul className="mt-3 grid grid-cols-4 gap-2">
+              {images.map((img, i) => (
+                <li
+                  key={img.id}
+                  className="relative aspect-square overflow-hidden rounded-card bg-raised"
                 >
-                  <ImageIcon className="w-4 h-4" aria-hidden="true" />
-                </button>
+                  <img
+                    src={img.url}
+                    alt={copy.post.imageAlt(i + 1)}
+                    className="h-full w-full object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setImages((prev) => prev.filter((p) => p.id !== img.id))}
+                    aria-label={copy.composer.removeImage}
+                    className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-ink/70 text-white hover:bg-ink"
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
 
-                <button
-                  type="button"
-                  onClick={() => setShowSourceInput(!showSourceInput)}
-                  className={`p-2 rounded-lg transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center ${
-                    showSourceInput
-                      ? 'text-primary-600 bg-primary-50 dark:bg-primary-950/40 dark:text-primary-400'
-                      : 'text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700'
-                  }`}
-                  aria-label="Toggle source URL input"
-                >
-                  <LinkIcon className="w-4 h-4" aria-hidden="true" />
-                </button>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <span
-                  className={`text-xs ${
-                    charLength > 500
-                      ? 'text-red-600 font-semibold'
-                      : charLength > 0 && charLength < 20
-                      ? 'text-amber-600'
-                      : 'text-neutral-400 dark:text-neutral-500'
-                  }`}
-                >
-                  {copy.composer.charCount(charLength, 500)}
-                </span>
-
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="sm"
-                  disabled={!isValidLength || isSubmitting || isUploading}
-                  isLoading={isSubmitting}
-                  icon={<Send className="w-3.5 h-3.5" aria-hidden="true" />}
-                >
-                  {isSubmitting ? copy.composer.publishing : copy.composer.publish}
-                </Button>
-              </div>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-1">
+              <input
+                ref={fileInput}
+                type="file"
+                accept={ACCEPT}
+                multiple
+                className="hidden"
+                onChange={(e) => void pickImages(e)}
+              />
+              <IconButton
+                label={copy.composer.attachImage}
+                onClick={() => fileInput.current?.click()}
+                disabled={!canAct || images.length >= MAX_IMAGES || upload.isPending}
+              >
+                <ImageIcon />
+              </IconButton>
+              <IconButton
+                label={copy.composer.toggleSource}
+                active={showSource}
+                onClick={() => setShowSource((v) => !v)}
+                disabled={!canAct}
+              >
+                <Link2 />
+              </IconButton>
+              {upload.isPending ? (
+                <span className="text-small text-muted">{copy.composer.uploading}</span>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-3">
+              <span
+                className={`num text-small ${length > 500 ? 'text-negative' : 'text-muted'}`}
+                aria-live="polite"
+              >
+                {copy.common.characters(length, 500)}
+              </span>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                disabled={!canSubmit}
+                isLoading={createPost.isPending}
+              >
+                {createPost.isPending ? copy.composer.publishing : copy.composer.publish}
+              </Button>
             </div>
           </div>
         </div>
-      </form>
-    </div>
+      </div>
+    </form>
   );
-};
+}

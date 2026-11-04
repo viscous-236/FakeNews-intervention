@@ -41,7 +41,9 @@ describe('Cursor Pagination (TASK-019)', () => {
   });
 
   it('rejects cursor with invalid date string', () => {
-    const bad = Buffer.from('not-a-date|a0000000-0000-4000-8000-000000000001', 'utf8').toString('base64url');
+    const bad = Buffer.from('not-a-date|a0000000-0000-4000-8000-000000000001', 'utf8').toString(
+      'base64url',
+    );
     expect(() => decodeCursor(bad)).toThrow(AppError);
   });
 
@@ -75,10 +77,13 @@ describe('Database Error Mapping (TASK-019)', () => {
   });
 
   it('maps 23514 check_violation to 400 VALIDATION_ERROR', () => {
-    const pgErr = Object.assign(new Error('new row violates check constraint "users_username_check"'), {
-      code: '23514',
-      constraint: 'users_username_check',
-    });
+    const pgErr = Object.assign(
+      new Error('new row violates check constraint "users_username_check"'),
+      {
+        code: '23514',
+        constraint: 'users_username_check',
+      },
+    );
     const appErr = mapPgError(pgErr);
     expect(appErr.statusCode).toBe(400);
     expect(appErr.code).toBe('VALIDATION_ERROR');

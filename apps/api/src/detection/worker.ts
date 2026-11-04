@@ -31,13 +31,24 @@ let lastSuccessfulDetectorCall = 0;
 let workerInterval: NodeJS.Timeout | null = null;
 let inFlight: Promise<void> | null = null;
 
+/**
+ * RUL-026: a `running` row older than 120 s is reset to `failed` and becomes
+ * claimable again at once. The expired lease counts as an attempt so a job
+ * that keeps dying mid-flight reaches `failed_permanent` instead of being
+ * retried forever.
+ */
 async function resetStaleRows(tx: PoolClient): Promise<void> {
   await tx.query(
     `UPDATE detection_results
-     SET status = 'failed', locked_at = NULL, next_attempt_at = now(),
+     SET attempts = attempts + 1,
+         status = CASE WHEN attempts + 1 >= $1 THEN 'failed_permanent' ELSE 'failed' END,
+         completed_at = CASE WHEN attempts + 1 >= $1 THEN now() ELSE NULL END,
+         next_attempt_at = now(),
+         locked_at = NULL,
          error_code = 'TIMEOUT', error_detail = 'Worker lease expired after 120 seconds'
      WHERE status = 'running'
        AND locked_at < now() - interval '120 seconds'`,
+    [config.DETECTOR_MAX_ATTEMPTS],
   );
 }
 

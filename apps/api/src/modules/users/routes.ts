@@ -10,18 +10,8 @@ import { config } from '../../config.js';
 import { validate } from '../../middleware/validate.js';
 import { authenticate, requireAuth, requireActive } from '../../middleware/auth.js';
 import { followsLimiter } from '../../middleware/rateLimit.js';
-import {
-  getUserProfile,
-  updateProfile,
-  deleteAccount,
-  exportAccount,
-} from './service.js';
-import {
-  blockUser,
-  followUser,
-  unblockUser,
-  unfollowUser,
-} from '../social/follows.js';
+import { getUserProfile, updateProfile, deleteAccount, exportAccount } from './service.js';
+import { blockUser, followUser, unblockUser, unfollowUser } from '../social/follows.js';
 import { getSuggestions, listBlockedUsers, listConnections } from '../social/people.js';
 import { z } from 'zod';
 
@@ -47,7 +37,7 @@ usersRouter.get(
   },
 );
 
-// PATCH /users/me (Active users only: status='active', emailVerified=true)
+// PATCH /users/me (Active users only: status='active')
 usersRouter.patch(
   '/users/me',
   requireActive,

@@ -61,8 +61,19 @@ describe('parseConfig()', () => {
   });
 
   it('sets COOKIE_SECURE=true when NODE_ENV=production', () => {
-    const cfg = parseConfig({ ...validEnv(), NODE_ENV: 'production' });
+    const cfg = parseConfig({ ...validEnv(), NODE_ENV: 'production', METRICS_TOKEN: 'prod-token' });
     expect(cfg.COOKIE_SECURE).toBe(true);
+  });
+
+  it('requires METRICS_TOKEN in production (Section 1.9)', () => {
+    const env: NodeJS.ProcessEnv = { ...validEnv(), NODE_ENV: 'production' };
+    delete env['METRICS_TOKEN'];
+    expect(() => parseConfig(env)).toThrow(/METRICS_TOKEN/);
+  });
+
+  it('treats an empty SENTRY_DSN as disabled', () => {
+    const cfg = parseConfig({ ...validEnv(), SENTRY_DSN: '' });
+    expect(cfg.SENTRY_DSN).toBeUndefined();
   });
 
   it('sets COOKIE_SECURE=false when NODE_ENV=development', () => {

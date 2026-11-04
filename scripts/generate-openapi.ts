@@ -49,16 +49,34 @@ function buildOpenApiDoc() {
     ],
     tags: [
       { name: 'Auth', description: 'Authentication, registration, sessions, email tokens' },
-      { name: 'Users', description: 'User profile management, following, blocking, account deletion' },
-      { name: 'Posts', description: 'Post publication, revision editing, deletion, and feed presentation' },
+      {
+        name: 'Users',
+        description: 'User profile management, following, blocking, account deletion',
+      },
+      {
+        name: 'Posts',
+        description: 'Post publication, revision editing, deletion, and feed presentation',
+      },
       { name: 'Feed', description: 'Global public feed and following feed with keyset pagination' },
-      { name: 'Social', description: 'Likes (with retraction hooks), comments, search, and suggestions' },
+      {
+        name: 'Social',
+        description: 'Likes (with retraction hooks), comments, search, and suggestions',
+      },
       { name: 'Governance', description: 'User reports, admin assessments, and event appeals' },
-      { name: 'Score', description: 'Reputation score, ledger history, wave projections, and verification' },
-      { name: 'Notifications', description: 'Notification polling and real-time Server-Sent Events (SSE)' },
+      {
+        name: 'Score',
+        description: 'Reputation score, ledger history, wave projections, and verification',
+      },
+      {
+        name: 'Notifications',
+        description: 'Notification polling and real-time Server-Sent Events (SSE)',
+      },
       { name: 'Messages', description: 'One-to-one direct messages via REST and WebSocket' },
       { name: 'Media', description: 'Image attachment and avatar uploads via S3 storage' },
-      { name: 'Admin', description: 'Review queue, assessments, wave management, analytics, and CSV exports' },
+      {
+        name: 'Admin',
+        description: 'Review queue, assessments, wave management, analytics, and CSV exports',
+      },
       { name: 'System', description: 'System health, readiness, and observability metrics' },
     ],
     components: {
@@ -131,7 +149,18 @@ function buildOpenApiDoc() {
         },
         Me: {
           type: 'object',
-          required: ['id', 'username', 'email', 'displayName', 'bio', 'avatarUrl', 'role', 'status', 'emailVerified', 'score', 'createdAt'],
+          required: [
+            'id',
+            'username',
+            'email',
+            'displayName',
+            'bio',
+            'avatarUrl',
+            'role',
+            'status',
+            'score',
+            'createdAt',
+          ],
           properties: {
             id: { type: 'string', format: 'uuid' },
             username: { type: 'string' },
@@ -141,7 +170,6 @@ function buildOpenApiDoc() {
             avatarUrl: { type: ['string', 'null'] },
             role: { $ref: '#/components/schemas/UserRole' },
             status: { $ref: '#/components/schemas/UserStatus' },
-            emailVerified: { type: 'boolean' },
             score: {
               type: 'object',
               required: ['q', 'sigma', 'tier'],
@@ -156,7 +184,23 @@ function buildOpenApiDoc() {
         },
         Post: {
           type: 'object',
-          required: ['id', 'kind', 'author', 'body', 'sourceUrl', 'images', 'status', 'createdAt', 'editedAt', 'label', 'underAppeal', 'requiresShareConfirmation', 'counts', 'viewer', 'reshareOf'],
+          required: [
+            'id',
+            'kind',
+            'author',
+            'body',
+            'sourceUrl',
+            'images',
+            'status',
+            'createdAt',
+            'editedAt',
+            'label',
+            'underAppeal',
+            'requiresShareConfirmation',
+            'counts',
+            'viewer',
+            'reshareOf',
+          ],
           properties: {
             id: { type: 'string', format: 'uuid' },
             kind: { $ref: '#/components/schemas/PostKind' },
@@ -209,7 +253,9 @@ function buildOpenApiDoc() {
                   type: 'object',
                   properties: {
                     status: { $ref: '#/components/schemas/DetectionStatus' },
-                    band: { oneOf: [{ $ref: '#/components/schemas/DetectionBand' }, { type: 'null' }] },
+                    band: {
+                      oneOf: [{ $ref: '#/components/schemas/DetectionBand' }, { type: 'null' }],
+                    },
                   },
                 },
                 events: {
@@ -240,7 +286,19 @@ function buildOpenApiDoc() {
         },
         LedgerRow: {
           type: 'object',
-          required: ['waveNumber', 'nPos', 'nNeg', 'nAdj', 'r', 'sigmaUsed', 'qBefore', 'delta', 'qAfter', 'formulaVersion', 'finalizedAt'],
+          required: [
+            'waveNumber',
+            'nPos',
+            'nNeg',
+            'nAdj',
+            'r',
+            'sigmaUsed',
+            'qBefore',
+            'delta',
+            'qAfter',
+            'formulaVersion',
+            'finalizedAt',
+          ],
           properties: {
             waveNumber: { type: 'integer' },
             nPos: { type: 'integer' },
@@ -257,7 +315,19 @@ function buildOpenApiDoc() {
         },
         EventItem: {
           type: 'object',
-          required: ['id', 'kind', 'value', 'status', 'waveNumber', 'voidReason', 'post', 'assessment', 'reversesEventId', 'appeal', 'createdAt'],
+          required: [
+            'id',
+            'kind',
+            'value',
+            'status',
+            'waveNumber',
+            'voidReason',
+            'post',
+            'assessment',
+            'reversesEventId',
+            'appeal',
+            'createdAt',
+          ],
           properties: {
             id: { type: 'string', format: 'uuid' },
             kind: { $ref: '#/components/schemas/ReputationEventKind' },
@@ -311,13 +381,6 @@ function buildOpenApiDoc() {
           properties: {
             identifier: { type: 'string', minLength: 1, maxLength: 128 },
             password: { type: 'string', minLength: 1, maxLength: 128 },
-          },
-        },
-        VerifyEmailInput: {
-          type: 'object',
-          required: ['token'],
-          properties: {
-            token: { type: 'string', minLength: 1 },
           },
         },
         ForgotPasswordInput: {
@@ -453,7 +516,14 @@ function buildOpenApiDoc() {
         // Analytics models
         OverviewAnalytics: {
           type: 'object',
-          required: ['users', 'posts', 'waves', 'openQueue', 'openAppeals', 'detectionStatusCounts'],
+          required: [
+            'users',
+            'posts',
+            'waves',
+            'openQueue',
+            'openAppeals',
+            'detectionStatusCounts',
+          ],
           properties: {
             users: { type: 'integer' },
             posts: { type: 'integer' },
@@ -554,7 +624,9 @@ function buildOpenApiDoc() {
           summary: 'Register a new user account',
           requestBody: {
             required: true,
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/RegisterInput' } } },
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/RegisterInput' } },
+            },
           },
           responses: {
             '201': {
@@ -569,8 +641,18 @@ function buildOpenApiDoc() {
                 },
               },
             },
-            '400': { description: 'Validation error', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
-            '409': { description: 'Username or email taken', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+            '400': {
+              description: 'Validation error',
+              content: {
+                'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+              },
+            },
+            '409': {
+              description: 'Username or email taken',
+              content: {
+                'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+              },
+            },
           },
         },
       },
@@ -580,7 +662,9 @@ function buildOpenApiDoc() {
           summary: 'Sign in to account',
           requestBody: {
             required: true,
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/LoginInput' } } },
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/LoginInput' } },
+            },
           },
           responses: {
             '200': {
@@ -595,8 +679,18 @@ function buildOpenApiDoc() {
                 },
               },
             },
-            '401': { description: 'Invalid credentials', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
-            '429': { description: 'Rate limit / lockout exceeded', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+            '401': {
+              description: 'Invalid credentials',
+              content: {
+                'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+              },
+            },
+            '429': {
+              description: 'Rate limit / lockout exceeded',
+              content: {
+                'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+              },
+            },
           },
         },
       },
@@ -607,7 +701,12 @@ function buildOpenApiDoc() {
           security: [{ cookieAuth: [] }],
           responses: {
             '204': { description: 'Session ended' },
-            '401': { description: 'Unauthenticated', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+            '401': {
+              description: 'Unauthenticated',
+              content: {
+                'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+              },
+            },
           },
         },
       },
@@ -629,32 +728,12 @@ function buildOpenApiDoc() {
                 },
               },
             },
-            '401': { description: 'Unauthenticated', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
-          },
-        },
-      },
-      '/auth/verify-email': {
-        post: {
-          tags: ['Auth'],
-          summary: 'Verify email address with verification token',
-          requestBody: {
-            required: true,
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/VerifyEmailInput' } } },
-          },
-          responses: {
-            '204': { description: 'Email verified' },
-            '400': { description: 'Invalid or expired token', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
-          },
-        },
-      },
-      '/auth/resend-verification': {
-        post: {
-          tags: ['Auth'],
-          summary: 'Resend verification email',
-          security: [{ cookieAuth: [] }],
-          responses: {
-            '204': { description: 'Verification email queued' },
-            '429': { description: 'Rate limit exceeded' },
+            '401': {
+              description: 'Unauthenticated',
+              content: {
+                'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+              },
+            },
           },
         },
       },
@@ -664,7 +743,9 @@ function buildOpenApiDoc() {
           summary: 'Request password reset token',
           requestBody: {
             required: true,
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/ForgotPasswordInput' } } },
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/ForgotPasswordInput' } },
+            },
           },
           responses: {
             '204': { description: 'Password reset email queued if email exists' },
@@ -677,7 +758,9 @@ function buildOpenApiDoc() {
           summary: 'Reset password with token and revoke existing sessions',
           requestBody: {
             required: true,
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/ResetPasswordInput' } } },
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/ResetPasswordInput' } },
+            },
           },
           responses: {
             '204': { description: 'Password reset' },
@@ -692,7 +775,9 @@ function buildOpenApiDoc() {
           security: [{ cookieAuth: [] }],
           requestBody: {
             required: true,
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/ChangePasswordInput' } } },
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/ChangePasswordInput' } },
+            },
           },
           responses: {
             '204': { description: 'Password changed; other sessions invalidated' },
@@ -740,7 +825,9 @@ function buildOpenApiDoc() {
           tags: ['Auth'],
           summary: 'Revoke an active session',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           responses: {
             '204': { description: 'Session revoked' },
             '404': { description: 'Session not found' },
@@ -751,7 +838,9 @@ function buildOpenApiDoc() {
         get: {
           tags: ['Users'],
           summary: 'Get public user profile',
-          parameters: [{ name: 'username', in: 'path', required: true, schema: { type: 'string' } }],
+          parameters: [
+            { name: 'username', in: 'path', required: true, schema: { type: 'string' } },
+          ],
           responses: {
             '200': {
               description: 'Public profile with score visibility rules applied',
@@ -759,7 +848,17 @@ function buildOpenApiDoc() {
                 'application/json': {
                   schema: {
                     type: 'object',
-                    required: ['id', 'username', 'displayName', 'bio', 'avatarUrl', 'tier', 'counts', 'viewer', 'createdAt'],
+                    required: [
+                      'id',
+                      'username',
+                      'displayName',
+                      'bio',
+                      'avatarUrl',
+                      'tier',
+                      'counts',
+                      'viewer',
+                      'createdAt',
+                    ],
                     properties: {
                       id: { type: 'string', format: 'uuid' },
                       username: { type: 'string' },
@@ -767,7 +866,10 @@ function buildOpenApiDoc() {
                       bio: { type: 'string' },
                       avatarUrl: { type: ['string', 'null'] },
                       tier: { $ref: '#/components/schemas/Tier' },
-                      q: { type: 'string', description: 'Present only if public score visibility allows' },
+                      q: {
+                        type: 'string',
+                        description: 'Present only if public score visibility allows',
+                      },
                       counts: {
                         type: 'object',
                         required: ['posts', 'followers', 'following'],
@@ -802,7 +904,9 @@ function buildOpenApiDoc() {
           security: [{ cookieAuth: [] }],
           requestBody: {
             required: true,
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateMeInput' } } },
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/UpdateMeInput' } },
+            },
           },
           responses: {
             '200': {
@@ -825,7 +929,9 @@ function buildOpenApiDoc() {
           security: [{ cookieAuth: [] }],
           requestBody: {
             required: true,
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/DeleteMeInput' } } },
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/DeleteMeInput' } },
+            },
           },
           responses: {
             '204': { description: 'Account deleted and anonymized' },
@@ -840,8 +946,11 @@ function buildOpenApiDoc() {
           security: [{ cookieAuth: [] }],
           responses: {
             '200': {
-              description: 'Full profile, posts, comments, likes, follows, events, ledger, and notifications',
-              content: { 'application/json': { schema: { type: 'object', additionalProperties: true } } },
+              description:
+                'Full profile, posts, comments, likes, follows, events, ledger, and notifications',
+              content: {
+                'application/json': { schema: { type: 'object', additionalProperties: true } },
+              },
             },
           },
         },
@@ -932,7 +1041,9 @@ function buildOpenApiDoc() {
           tags: ['Users'],
           summary: 'Follow a user',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'username', in: 'path', required: true, schema: { type: 'string' } }],
+          parameters: [
+            { name: 'username', in: 'path', required: true, schema: { type: 'string' } },
+          ],
           responses: {
             '204': { description: 'Followed' },
             '409': { description: 'Already following or self-follow' },
@@ -942,7 +1053,9 @@ function buildOpenApiDoc() {
           tags: ['Users'],
           summary: 'Unfollow a user',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'username', in: 'path', required: true, schema: { type: 'string' } }],
+          parameters: [
+            { name: 'username', in: 'path', required: true, schema: { type: 'string' } },
+          ],
           responses: { '204': { description: 'Unfollowed' } },
         },
       },
@@ -951,14 +1064,18 @@ function buildOpenApiDoc() {
           tags: ['Users'],
           summary: 'Block a user',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'username', in: 'path', required: true, schema: { type: 'string' } }],
+          parameters: [
+            { name: 'username', in: 'path', required: true, schema: { type: 'string' } },
+          ],
           responses: { '204': { description: 'User blocked' } },
         },
         delete: {
           tags: ['Users'],
           summary: 'Unblock a user',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'username', in: 'path', required: true, schema: { type: 'string' } }],
+          parameters: [
+            { name: 'username', in: 'path', required: true, schema: { type: 'string' } },
+          ],
           responses: { '204': { description: 'User unblocked' } },
         },
       },
@@ -1114,10 +1231,14 @@ function buildOpenApiDoc() {
           security: [{ cookieAuth: [] }],
           requestBody: {
             required: true,
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/CreatePostInput' } } },
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/CreatePostInput' } },
+            },
           },
           responses: {
-            '201': { content: { 'application/json': { schema: { $ref: '#/components/schemas/Post' } } } },
+            '201': {
+              content: { 'application/json': { schema: { $ref: '#/components/schemas/Post' } } },
+            },
             '400': { description: 'Validation error' },
           },
         },
@@ -1126,9 +1247,13 @@ function buildOpenApiDoc() {
         get: {
           tags: ['Posts'],
           summary: 'Get post by id',
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           responses: {
-            '200': { content: { 'application/json': { schema: { $ref: '#/components/schemas/Post' } } } },
+            '200': {
+              content: { 'application/json': { schema: { $ref: '#/components/schemas/Post' } } },
+            },
             '404': { description: 'Post not found' },
           },
         },
@@ -1136,13 +1261,19 @@ function buildOpenApiDoc() {
           tags: ['Posts'],
           summary: 'Edit post within 15-minute edit window (RUL-017)',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           requestBody: {
             required: true,
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/EditPostInput' } } },
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/EditPostInput' } },
+            },
           },
           responses: {
-            '200': { content: { 'application/json': { schema: { $ref: '#/components/schemas/Post' } } } },
+            '200': {
+              content: { 'application/json': { schema: { $ref: '#/components/schemas/Post' } } },
+            },
             '409': { description: 'Edit window expired or assessment already decided' },
           },
         },
@@ -1150,7 +1281,9 @@ function buildOpenApiDoc() {
           tags: ['Posts'],
           summary: 'Soft-delete post (triggers retraction if reshare)',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           responses: { '204': { description: 'Post deleted' } },
         },
       },
@@ -1210,22 +1343,34 @@ function buildOpenApiDoc() {
       '/posts/{id}/reshare': {
         post: {
           tags: ['Posts'],
-          summary: 'Reshare a post (awards RESPONSIBLE_RESHARE or creates MISINFO_RESHARE, RUL-019)',
+          summary:
+            'Reshare a post (awards RESPONSIBLE_RESHARE or creates MISINFO_RESHARE, RUL-019)',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           requestBody: {
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/ReshareInput' } } },
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/ReshareInput' } },
+            },
           },
           responses: {
-            '201': { content: { 'application/json': { schema: { $ref: '#/components/schemas/Post' } } } },
-            '409': { description: 'CONFIRMATION_REQUIRED when sharing flagged/false post without confirmation' },
+            '201': {
+              content: { 'application/json': { schema: { $ref: '#/components/schemas/Post' } } },
+            },
+            '409': {
+              description:
+                'CONFIRMATION_REQUIRED when sharing flagged/false post without confirmation',
+            },
           },
         },
         delete: {
           tags: ['Posts'],
           summary: 'Retract reshare before wave finalization (DEC-005, RUL-007)',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           responses: { '204': { description: 'Reshare retracted' } },
         },
       },
@@ -1234,14 +1379,19 @@ function buildOpenApiDoc() {
           tags: ['Social'],
           summary: 'Like a post (syncs MISINFO_LIKE if fake, RUL-032)',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           responses: { '204': { description: 'Liked' } },
         },
         delete: {
           tags: ['Social'],
-          summary: 'Unlike a post (retracts MISINFO_LIKE before wave finalization, DEC-001, DEC-005)',
+          summary:
+            'Unlike a post (retracts MISINFO_LIKE before wave finalization, DEC-001, DEC-005)',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           responses: { '204': { description: 'Unliked' } },
         },
       },
@@ -1275,13 +1425,19 @@ function buildOpenApiDoc() {
           tags: ['Social'],
           summary: 'Add a comment (comments never generate scoring events, DEC-006)',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           requestBody: {
             required: true,
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/CommentInput' } } },
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/CommentInput' } },
+            },
           },
           responses: {
-            '201': { content: { 'application/json': { schema: { $ref: '#/components/schemas/Comment' } } } },
+            '201': {
+              content: { 'application/json': { schema: { $ref: '#/components/schemas/Comment' } } },
+            },
           },
         },
       },
@@ -1290,7 +1446,9 @@ function buildOpenApiDoc() {
           tags: ['Social'],
           summary: 'Delete comment',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           responses: { '204': { description: 'Comment deleted' } },
         },
       },
@@ -1299,10 +1457,14 @@ function buildOpenApiDoc() {
           tags: ['Governance'],
           summary: 'Report post to review queue (RUL-020)',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           requestBody: {
             required: true,
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/ReportInput' } } },
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/ReportInput' } },
+            },
           },
           responses: {
             '201': {
@@ -1324,7 +1486,8 @@ function buildOpenApiDoc() {
       '/me/score': {
         get: {
           tags: ['Score'],
-          summary: 'Get reputation score details and pending wave projection across all 7 event kinds',
+          summary:
+            'Get reputation score details and pending wave projection across all 7 event kinds',
           security: [{ cookieAuth: [] }],
           responses: {
             '200': {
@@ -1345,13 +1508,21 @@ function buildOpenApiDoc() {
                           openedAt: { type: 'string', format: 'date-time' },
                           pending: {
                             type: 'object',
-                            required: ['nPos', 'nNeg', 'nAdj', 'r', 'projectedDelta'],
+                            required: ['nPos', 'nNeg', 'nAdj', 'r', 'projectedDelta', 'projectedQ'],
                             properties: {
                               nPos: { type: 'integer' },
                               nNeg: { type: 'integer' },
                               nAdj: { type: 'integer' },
                               r: { type: 'integer' },
-                              projectedDelta: { type: 'string' },
+                              projectedDelta: {
+                                type: 'string',
+                                description: 'sigma × R, computed with decimal.js (DEC-015)',
+                              },
+                              projectedQ: {
+                                type: 'string',
+                                description:
+                                  'Q + projectedDelta, computed with decimal.js (DEC-015)',
+                              },
                             },
                           },
                         },
@@ -1404,7 +1575,9 @@ function buildOpenApiDoc() {
           tags: ['Score'],
           summary: 'Get wave ledger breakdown and contributing events',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'waveNumber', in: 'path', required: true, schema: { type: 'integer' } }],
+          parameters: [
+            { name: 'waveNumber', in: 'path', required: true, schema: { type: 'integer' } },
+          ],
           responses: {
             '200': {
               content: {
@@ -1429,7 +1602,11 @@ function buildOpenApiDoc() {
           summary: 'List user reputation events (including void reasons and statuses)',
           security: [{ cookieAuth: [] }],
           parameters: [
-            { name: 'status', in: 'query', schema: { $ref: '#/components/schemas/ReputationEventStatus' } },
+            {
+              name: 'status',
+              in: 'query',
+              schema: { $ref: '#/components/schemas/ReputationEventStatus' },
+            },
             { name: 'cursor', in: 'query', schema: { type: 'string' } },
             { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } },
           ],
@@ -1454,12 +1631,17 @@ function buildOpenApiDoc() {
       '/events/{id}/appeal': {
         post: {
           tags: ['Governance'],
-          summary: 'Open an appeal on a negative reputation event (RUL-016: MISINFO_POST, RESHARE, LIKE)',
+          summary:
+            'Open an appeal on a negative reputation event (RUL-016: MISINFO_POST, RESHARE, LIKE)',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           requestBody: {
             required: true,
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/AppealInput' } } },
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/AppealInput' } },
+            },
           },
           responses: {
             '201': {
@@ -1501,7 +1683,14 @@ function buildOpenApiDoc() {
                         type: 'array',
                         items: {
                           type: 'object',
-                          required: ['id', 'status', 'reason', 'resolutionNote', 'createdAt', 'resolvedAt'],
+                          required: [
+                            'id',
+                            'status',
+                            'reason',
+                            'resolutionNote',
+                            'createdAt',
+                            'resolvedAt',
+                          ],
                           properties: {
                             id: { type: 'string', format: 'uuid' },
                             status: { $ref: '#/components/schemas/AppealStatus' },
@@ -1525,7 +1714,9 @@ function buildOpenApiDoc() {
         get: {
           tags: ['Score'],
           summary: 'Get public reputation score for user (RUL-023 score visibility)',
-          parameters: [{ name: 'username', in: 'path', required: true, schema: { type: 'string' } }],
+          parameters: [
+            { name: 'username', in: 'path', required: true, schema: { type: 'string' } },
+          ],
           responses: {
             '200': {
               content: {
@@ -1588,11 +1779,24 @@ function buildOpenApiDoc() {
                         type: 'array',
                         items: {
                           type: 'object',
-                          required: ['id', 'type', 'actor', 'postId', 'payload', 'createdAt', 'readAt'],
+                          required: [
+                            'id',
+                            'type',
+                            'actor',
+                            'postId',
+                            'payload',
+                            'createdAt',
+                            'readAt',
+                          ],
                           properties: {
                             id: { type: 'string', format: 'uuid' },
                             type: { $ref: '#/components/schemas/NotificationType' },
-                            actor: { oneOf: [{ $ref: '#/components/schemas/UserSummary' }, { type: 'null' }] },
+                            actor: {
+                              oneOf: [
+                                { $ref: '#/components/schemas/UserSummary' },
+                                { type: 'null' },
+                              ],
+                            },
                             postId: { type: ['string', 'null'], format: 'uuid' },
                             payload: { type: 'object', additionalProperties: true },
                             createdAt: { type: 'string', format: 'date-time' },
@@ -1635,7 +1839,11 @@ function buildOpenApiDoc() {
           summary: 'Mark notifications as read',
           security: [{ cookieAuth: [] }],
           requestBody: {
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/ReadNotificationsInput' } } },
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ReadNotificationsInput' },
+              },
+            },
           },
           responses: { '204': { description: 'Marked as read' } },
         },
@@ -1735,10 +1943,14 @@ function buildOpenApiDoc() {
           tags: ['Messages'],
           summary: 'Send direct message (messages never affect scoring, DEC-006)',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'username', in: 'path', required: true, schema: { type: 'string' } }],
+          parameters: [
+            { name: 'username', in: 'path', required: true, schema: { type: 'string' } },
+          ],
           requestBody: {
             required: true,
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/MessageInput' } } },
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/MessageInput' } },
+            },
           },
           responses: {
             '201': {
@@ -1765,7 +1977,9 @@ function buildOpenApiDoc() {
           tags: ['Messages'],
           summary: 'Mark conversation with user as read',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'username', in: 'path', required: true, schema: { type: 'string' } }],
+          parameters: [
+            { name: 'username', in: 'path', required: true, schema: { type: 'string' } },
+          ],
           responses: { '204': { description: 'Messages marked read' } },
         },
       },
@@ -1814,14 +2028,24 @@ function buildOpenApiDoc() {
           tags: ['Admin'],
           summary: 'Full post inspection for admin assessment',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           responses: {
             '200': {
               content: {
                 'application/json': {
                   schema: {
                     type: 'object',
-                    required: ['post', 'author', 'detections', 'reports', 'assessments', 'events', 'appeals'],
+                    required: [
+                      'post',
+                      'author',
+                      'detections',
+                      'reports',
+                      'assessments',
+                      'events',
+                      'appeals',
+                    ],
                     properties: {
                       post: { $ref: '#/components/schemas/Post' },
                       author: {
@@ -1835,11 +2059,26 @@ function buildOpenApiDoc() {
                           tier: { $ref: '#/components/schemas/Tier' },
                         },
                       },
-                      detections: { type: 'array', items: { type: 'object', additionalProperties: true } },
-                      reports: { type: 'array', items: { type: 'object', additionalProperties: true } },
-                      assessments: { type: 'array', items: { type: 'object', additionalProperties: true } },
-                      events: { type: 'array', items: { type: 'object', additionalProperties: true } },
-                      appeals: { type: 'array', items: { type: 'object', additionalProperties: true } },
+                      detections: {
+                        type: 'array',
+                        items: { type: 'object', additionalProperties: true },
+                      },
+                      reports: {
+                        type: 'array',
+                        items: { type: 'object', additionalProperties: true },
+                      },
+                      assessments: {
+                        type: 'array',
+                        items: { type: 'object', additionalProperties: true },
+                      },
+                      events: {
+                        type: 'array',
+                        items: { type: 'object', additionalProperties: true },
+                      },
+                      appeals: {
+                        type: 'array',
+                        items: { type: 'object', additionalProperties: true },
+                      },
                     },
                   },
                 },
@@ -1851,10 +2090,20 @@ function buildOpenApiDoc() {
           tags: ['Admin'],
           summary: 'Admin deletion of infringing post with audit logging',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           requestBody: {
             required: true,
-            content: { 'application/json': { schema: { type: 'object', required: ['reason'], properties: { reason: { type: 'string' } } } } },
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['reason'],
+                  properties: { reason: { type: 'string' } },
+                },
+              },
+            },
           },
           responses: { '204': { description: 'Post soft deleted' } },
         },
@@ -1862,12 +2111,17 @@ function buildOpenApiDoc() {
       '/admin/posts/{id}/assessments': {
         post: {
           tags: ['Admin'],
-          summary: 'Submit admin assessment verdict (creates reputation events, handles Good-Faith Windows and superseding)',
+          summary:
+            'Submit admin assessment verdict (creates reputation events, handles Good-Faith Windows and superseding)',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           requestBody: {
             required: true,
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/AssessmentInput' } } },
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/AssessmentInput' } },
+            },
           },
           responses: {
             '201': {
@@ -1896,7 +2150,10 @@ function buildOpenApiDoc() {
                 },
               },
             },
-            '403': { description: 'CONFLICT_OF_INTEREST (admin participated in post, reshare, report, or like)' },
+            '403': {
+              description:
+                'CONFLICT_OF_INTEREST (admin participated in post, reshare, report, or like)',
+            },
             '409': { description: 'ALREADY_EXISTS (same admin verdict already current)' },
           },
         },
@@ -1906,7 +2163,9 @@ function buildOpenApiDoc() {
           tags: ['Admin'],
           summary: 'Release held post (RUL-024 low tier held post release)',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           responses: { '204': { description: 'Post released' } },
         },
       },
@@ -1915,7 +2174,9 @@ function buildOpenApiDoc() {
           tags: ['Admin'],
           summary: 'Requeue post for automated detector classification',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           responses: {
             '202': {
               content: {
@@ -1936,7 +2197,9 @@ function buildOpenApiDoc() {
           tags: ['Admin'],
           summary: 'Retry a permanently failed detection job',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           responses: { '202': { description: 'Job requeued' } },
         },
       },
@@ -1958,7 +2221,10 @@ function buildOpenApiDoc() {
                     type: 'object',
                     required: ['items', 'nextCursor'],
                     properties: {
-                      items: { type: 'array', items: { type: 'object', additionalProperties: true } },
+                      items: {
+                        type: 'array',
+                        items: { type: 'object', additionalProperties: true },
+                      },
                       nextCursor: { type: ['string', 'null'] },
                     },
                   },
@@ -1973,10 +2239,14 @@ function buildOpenApiDoc() {
           tags: ['Admin'],
           summary: 'Resolve appeal: uphold or overturn assessment',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           requestBody: {
             required: true,
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/ResolveAppealInput' } } },
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/ResolveAppealInput' } },
+            },
           },
           responses: {
             '200': { description: 'Appeal resolved' },
@@ -2046,7 +2316,10 @@ function buildOpenApiDoc() {
                         type: 'array',
                         items: {
                           type: 'object',
-                          allOf: [{ $ref: '#/components/schemas/LedgerRow' }, { properties: { username: { type: 'string' } } }],
+                          allOf: [
+                            { $ref: '#/components/schemas/LedgerRow' },
+                            { properties: { username: { type: 'string' } } },
+                          ],
                         },
                       },
                       nextCursor: { type: ['string', 'null'] },
@@ -2063,7 +2336,9 @@ function buildOpenApiDoc() {
           tags: ['Admin'],
           summary: 'Manually finalize wave and calculate scores idempotently',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           responses: {
             '200': {
               content: {
@@ -2141,7 +2416,9 @@ function buildOpenApiDoc() {
           tags: ['Admin'],
           summary: 'Inspect user account details and complete wave score history',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           responses: {
             '200': {
               content: {
@@ -2151,7 +2428,10 @@ function buildOpenApiDoc() {
                     required: ['user', 'scoreHistory'],
                     properties: {
                       user: { $ref: '#/components/schemas/Me' },
-                      scoreHistory: { type: 'array', items: { $ref: '#/components/schemas/LedgerRow' } },
+                      scoreHistory: {
+                        type: 'array',
+                        items: { $ref: '#/components/schemas/LedgerRow' },
+                      },
                     },
                   },
                 },
@@ -2165,10 +2445,14 @@ function buildOpenApiDoc() {
           tags: ['Admin'],
           summary: 'Suspend user account with audit trail',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           requestBody: {
             required: true,
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/SuspendUserInput' } } },
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/SuspendUserInput' } },
+            },
           },
           responses: {
             '204': { description: 'User suspended' },
@@ -2181,10 +2465,14 @@ function buildOpenApiDoc() {
           tags: ['Admin'],
           summary: 'Restore suspended user account',
           security: [{ cookieAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
           requestBody: {
             required: true,
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/SuspendUserInput' } } },
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/SuspendUserInput' } },
+            },
           },
           responses: { '204': { description: 'User restored' } },
         },
@@ -2195,6 +2483,9 @@ function buildOpenApiDoc() {
           summary: 'Query immutable administrator audit logs',
           security: [{ cookieAuth: [] }],
           parameters: [
+            { name: 'entityType', in: 'query', schema: { type: 'string' } },
+            { name: 'entityId', in: 'query', schema: { type: 'string', format: 'uuid' } },
+            { name: 'actorId', in: 'query', schema: { type: 'string', format: 'uuid' } },
             { name: 'action', in: 'query', schema: { type: 'string' } },
             { name: 'cursor', in: 'query', schema: { type: 'string' } },
             { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } },
@@ -2207,7 +2498,10 @@ function buildOpenApiDoc() {
                     type: 'object',
                     required: ['items', 'nextCursor'],
                     properties: {
-                      items: { type: 'array', items: { type: 'object', additionalProperties: true } },
+                      items: {
+                        type: 'array',
+                        items: { type: 'object', additionalProperties: true },
+                      },
                       nextCursor: { type: ['string', 'null'] },
                     },
                   },
@@ -2277,7 +2571,8 @@ function buildOpenApiDoc() {
       '/admin/analytics/spread': {
         get: {
           tags: ['Admin'],
-          summary: 'Post reshare and like spread before and after label time by publisher tier (TASK-070)',
+          summary:
+            'Post reshare and like spread before and after label time by publisher tier (TASK-070)',
           security: [{ cookieAuth: [] }],
           responses: {
             '200': {
@@ -2316,7 +2611,8 @@ function buildOpenApiDoc() {
       '/admin/export/events.csv': {
         get: {
           tags: ['Admin'],
-          summary: 'Export reputation events (including MISINFO_LIKE and void reasons) as RFC 4180 CSV (TASK-074)',
+          summary:
+            'Export reputation events (including MISINFO_LIKE and void reasons) as RFC 4180 CSV (TASK-074)',
           security: [{ cookieAuth: [] }],
           parameters: [{ name: 'waveNumber', in: 'query', schema: { type: 'integer' } }],
           responses: {

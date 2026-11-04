@@ -1,119 +1,118 @@
 import React, { useState } from 'react';
+import { Repeat2 } from 'lucide-react';
+import type { Post } from '../../types';
+import { copy } from '../../copy';
+import { errorMessage } from '../../api/client';
+import { useReshare } from '../../api/hooks';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
-import { copy } from '../../copy';
-import { Post } from '../../types';
-import { AlertTriangle, Repeat } from 'lucide-react';
+import { CharCount, Textarea } from '../ui/Field';
+import { ErrorState, Notice } from '../ui/Page';
+import { PostLabelBadge } from '../ui/Badge';
 
 interface ReshareDialogProps {
   post: Post;
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (comment?: string) => Promise<void>;
+  /** Test seam: when provided, the dialog calls this instead of the API. */
+  onConfirm?: (comment?: string, acknowledgedWarning?: boolean) => Promise<void>;
 }
 
-export const ReshareDialog: React.FC<ReshareDialogProps> = ({
+/**
+ * Share dialog (RUL-019). When the post requires confirmation the warning is
+ * shown and the share is sent with acknowledgedWarning = true.
+ */
+export function ReshareDialog({
   post,
   isOpen,
   onClose,
   onConfirm,
-}) => {
+}: ReshareDialogProps): React.ReactElement | null {
   const [comment, setComment] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const reshare = useReshare();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const needsAck = post.requiresShareConfirmation;
+  const canSubmit = !busy && comment.length <= 500 && (!needsAck || acknowledged);
+
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!canSubmit) return;
     setError(null);
+    setBusy(true);
+    const trimmed = comment.trim() || undefined;
     try {
-      setIsSubmitting(true);
-      await onConfirm(comment.trim() ? comment.trim() : undefined);
+      if (onConfirm) {
+        await onConfirm(trimmed, needsAck ? true : undefined);
+      } else {
+        await reshare.mutateAsync({ post, comment: trimmed, acknowledgedWarning: needsAck });
+      }
       setComment('');
+      setAcknowledged(false);
       onClose();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : copy.error);
+    } catch (err) {
+      setError(errorMessage(err, copy.common.error));
     } finally {
-      setIsSubmitting(false);
+      setBusy(false);
     }
-  };
+  }
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={copy.reshareDialog.title}
-      size="md"
-    >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {post.requiresShareConfirmation && (
-          <div
-            role="alert"
-            className="rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 p-3 text-sm text-amber-800 dark:text-amber-200 flex items-start gap-2.5"
-          >
-            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
-            <p className="leading-snug">{copy.reshareDialog.warningPrompt}</p>
-          </div>
-        )}
+    <Modal isOpen={isOpen} onClose={onClose} title={copy.reshareDialog.title}>
+      <form onSubmit={submit} className="space-y-4">
+        {needsAck ? (
+          <Notice tone="warning">
+            <p role="alert">{copy.reshareDialog.warningPrompt}</p>
+            <label className="mt-2 flex items-center gap-2 text-body text-ink">
+              <input
+                type="checkbox"
+                checked={acknowledged}
+                onChange={(e) => setAcknowledged(e.target.checked)}
+                className="h-4 w-4 rounded border-control"
+              />
+              {copy.reshareDialog.acknowledge}
+            </label>
+          </Notice>
+        ) : null}
 
-        {error && (
-          <div
-            role="alert"
-            className="rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 p-3 text-sm text-red-700 dark:text-red-300"
-          >
-            {error}
-          </div>
-        )}
+        {error ? <ErrorState message={error} compact /> : null}
 
-        {/* Embedded post preview */}
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 p-3 text-sm">
-          <p className="font-semibold text-neutral-900 dark:text-neutral-100 mb-1">
-            @{post.author.username}
-          </p>
-          <p className="text-neutral-700 dark:text-neutral-300 line-clamp-3">
-            {post.body}
-          </p>
+        <div className="rounded-card border border-border p-3">
+          <div className="mb-1 flex flex-wrap items-center gap-2 text-small text-muted">
+            <span className="font-medium text-ink">{post.author.displayName}</span>
+            <span>@{post.author.username}</span>
+            <PostLabelBadge label={post.label} underAppeal={post.underAppeal} />
+          </div>
+          <p className="line-clamp-3 text-body text-ink">{post.body}</p>
         </div>
 
-        <div>
-          <label
-            htmlFor="reshare-comment"
-            className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1"
-          >
-            Add an optional comment
-          </label>
-          <textarea
-            id="reshare-comment"
-            rows={3}
-            maxLength={500}
-            className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            placeholder={copy.reshareDialog.commentPlaceholder}
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-          />
-          <div className="text-right text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-            {copy.composer.charCount(comment.length, 500)}
-          </div>
-        </div>
+        <Textarea
+          label={copy.reshareDialog.commentLabel}
+          placeholder={copy.reshareDialog.commentPlaceholder}
+          rows={3}
+          maxLength={500}
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          trailing={<CharCount value={comment.length} max={500} />}
+        />
 
-        <div className="flex justify-end gap-2 pt-2">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={onClose}
-            disabled={isSubmitting}
-          >
-            {copy.reshareDialog.cancel}
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            {copy.common.cancel}
           </Button>
           <Button
             type="submit"
-            variant={post.requiresShareConfirmation ? 'danger' : 'primary'}
-            isLoading={isSubmitting}
-            icon={<Repeat className="w-4 h-4" aria-hidden="true" />}
+            variant="primary"
+            isLoading={busy}
+            disabled={!canSubmit}
+            icon={<Repeat2 />}
           >
-            {isSubmitting ? copy.reshareDialog.sharing : copy.reshareDialog.confirmShare}
+            {busy ? copy.reshareDialog.sharing : copy.reshareDialog.confirmShare}
           </Button>
         </div>
       </form>
     </Modal>
   );
-};
+}

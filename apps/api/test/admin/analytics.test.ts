@@ -153,7 +153,9 @@ describe('Admin Analytics & Exports (TASK-073, TASK-074, TASK-076)', () => {
     );
 
     // Insert an assessment
-    const admin = await pool.query<{ id: string }>(`SELECT id FROM users WHERE role = 'admin' LIMIT 1`);
+    const admin = await pool.query<{ id: string }>(
+      `SELECT id FROM users WHERE role = 'admin' LIMIT 1`,
+    );
     const ass = await pool.query<{ id: string }>(
       `INSERT INTO assessments (post_id, post_revision, verdict, source, decided_by, rationale)
        VALUES ($1, 1, 'fake', 'admin', $2, 'Assessed as fake in test overview.') RETURNING id`,
@@ -161,7 +163,9 @@ describe('Admin Analytics & Exports (TASK-073, TASK-074, TASK-076)', () => {
     );
 
     // Insert reputation event & open appeal
-    const openWave = await pool.query<{ id: string }>(`SELECT id FROM waves WHERE status = 'open' LIMIT 1`);
+    const openWave = await pool.query<{ id: string }>(
+      `SELECT id FROM waves WHERE status = 'open' LIMIT 1`,
+    );
     const ev = await pool.query<{ id: string }>(
       `INSERT INTO reputation_events (user_id, post_id, assessment_id, kind, value, status, wave_id)
        VALUES ($1, $2, $3, 'MISINFO_POST', -1, 'eligible', $4) RETURNING id`,
@@ -174,16 +178,27 @@ describe('Admin Analytics & Exports (TASK-073, TASK-074, TASK-076)', () => {
     );
 
     // Call overview endpoint
-    const response = await request.get('/api/v1/admin/analytics/overview').set('Cookie', adminCookie);
+    const response = await request
+      .get('/api/v1/admin/analytics/overview')
+      .set('Cookie', adminCookie);
     expect(response.status).toBe(200);
 
     // Direct counts
-    const expectedUsers = Number((await pool.query('SELECT count(*)::int AS count FROM users')).rows[0]!.count);
-    const expectedPosts = Number((await pool.query('SELECT count(*)::int AS count FROM posts')).rows[0]!.count);
-    const expectedWaves = Number((await pool.query('SELECT count(*)::int AS count FROM waves')).rows[0]!.count);
-    const expectedQueue = Number((await pool.query('SELECT count(*)::int AS count FROM review_queue_v')).rows[0]!.count);
+    const expectedUsers = Number(
+      (await pool.query('SELECT count(*)::int AS count FROM users')).rows[0]!.count,
+    );
+    const expectedPosts = Number(
+      (await pool.query('SELECT count(*)::int AS count FROM posts')).rows[0]!.count,
+    );
+    const expectedWaves = Number(
+      (await pool.query('SELECT count(*)::int AS count FROM waves')).rows[0]!.count,
+    );
+    const expectedQueue = Number(
+      (await pool.query('SELECT count(*)::int AS count FROM review_queue_v')).rows[0]!.count,
+    );
     const expectedAppeals = Number(
-      (await pool.query("SELECT count(*)::int AS count FROM appeals WHERE status = 'open'")).rows[0]!.count,
+      (await pool.query("SELECT count(*)::int AS count FROM appeals WHERE status = 'open'"))
+        .rows[0]!.count,
     );
     const expectedStatusCounts = (
       await pool.query<{ status: string; count: number }>(
@@ -204,13 +219,18 @@ describe('Admin Analytics & Exports (TASK-073, TASK-074, TASK-076)', () => {
 
   it('TEST-092: Detector analytics confusion counts equal a direct SQL computation', async () => {
     const pool = getTestPool();
-    const admin = await pool.query<{ id: string }>(`SELECT id FROM users WHERE role = 'admin' LIMIT 1`);
+    const admin = await pool.query<{ id: string }>(
+      `SELECT id FROM users WHERE role = 'admin' LIMIT 1`,
+    );
     const adminId = admin.rows[0]!.id;
 
     const author = await createTestUser({ username: 'detector_author' });
 
     // Helper to create post with detection result & admin assessment
-    async function createAssessedPost(band: 'likely_fake' | 'uncertain' | 'likely_real', verdict: 'fake' | 'real') {
+    async function createAssessedPost(
+      band: 'likely_fake' | 'uncertain' | 'likely_real',
+      verdict: 'fake' | 'real',
+    ) {
       const p = await pool.query<{ id: string }>(
         `INSERT INTO posts (author_id, kind, body, status, author_tier_at_post, created_at)
          VALUES ($1, 'original', 'Body with sufficient length for post test.', 'published', 'neutral', now())
@@ -257,10 +277,18 @@ describe('Admin Analytics & Exports (TASK-073, TASK-074, TASK-076)', () => {
       agreementMap.set(`${row.verdict}:${row.band}`, row.count);
     }
 
-    expect(res.body.agreement.adminFakeVsBandLikelyFake).toBe(agreementMap.get('fake:likely_fake') ?? 0);
-    expect(res.body.agreement.adminFakeVsBandUncertain).toBe(agreementMap.get('fake:uncertain') ?? 0);
-    expect(res.body.agreement.adminRealVsBandLikelyReal).toBe(agreementMap.get('real:likely_real') ?? 0);
-    expect(res.body.agreement.adminRealVsBandUncertain).toBe(agreementMap.get('real:uncertain') ?? 0);
+    expect(res.body.agreement.adminFakeVsBandLikelyFake).toBe(
+      agreementMap.get('fake:likely_fake') ?? 0,
+    );
+    expect(res.body.agreement.adminFakeVsBandUncertain).toBe(
+      agreementMap.get('fake:uncertain') ?? 0,
+    );
+    expect(res.body.agreement.adminRealVsBandLikelyReal).toBe(
+      agreementMap.get('real:likely_real') ?? 0,
+    );
+    expect(res.body.agreement.adminRealVsBandUncertain).toBe(
+      agreementMap.get('real:uncertain') ?? 0,
+    );
     expect(res.body.agreement.adminFakeVsBandLikelyReal).toBe(0);
     expect(res.body.agreement.adminRealVsBandLikelyFake).toBe(0);
 
@@ -273,7 +301,9 @@ describe('Admin Analytics & Exports (TASK-073, TASK-074, TASK-076)', () => {
 
   it('TEST-093: CSV exports round-trip values containing commas, quotes and newlines', async () => {
     const pool = getTestPool();
-    const admin = await pool.query<{ id: string }>(`SELECT id FROM users WHERE role = 'admin' LIMIT 1`);
+    const admin = await pool.query<{ id: string }>(
+      `SELECT id FROM users WHERE role = 'admin' LIMIT 1`,
+    );
     const adminId = admin.rows[0]!.id;
     const author = await createTestUser({ username: 'csv_author' });
 
@@ -303,7 +333,9 @@ describe('Admin Analytics & Exports (TASK-073, TASK-074, TASK-076)', () => {
     );
 
     // Insert a wave ledger row
-    const openWave = await pool.query<{ id: string }>(`SELECT id FROM waves WHERE status = 'open' LIMIT 1`);
+    const openWave = await pool.query<{ id: string }>(
+      `SELECT id FROM waves WHERE status = 'open' LIMIT 1`,
+    );
     await withTransaction(async (tx) => {
       await tx.query("SET LOCAL app.scoring = 'on'");
       await tx.query(
@@ -314,10 +346,14 @@ describe('Admin Analytics & Exports (TASK-073, TASK-074, TASK-076)', () => {
     });
 
     // 1. Test assessments.csv
-    const assessCsvRes = await request.get('/api/v1/admin/export/assessments.csv').set('Cookie', adminCookie);
+    const assessCsvRes = await request
+      .get('/api/v1/admin/export/assessments.csv')
+      .set('Cookie', adminCookie);
     expect(assessCsvRes.status).toBe(200);
     expect(assessCsvRes.headers['content-type']).toContain('text/csv');
-    expect(assessCsvRes.headers['content-disposition']).toContain('attachment; filename="assessments.csv"');
+    expect(assessCsvRes.headers['content-disposition']).toContain(
+      'attachment; filename="assessments.csv"',
+    );
 
     const parsedAssess = parseCsv(assessCsvRes.text);
     expect(parsedAssess.length).toBeGreaterThanOrEqual(2);
@@ -330,18 +366,24 @@ describe('Admin Analytics & Exports (TASK-073, TASK-074, TASK-076)', () => {
     expect(matchingRow![rationaleIdx]).toBe(complexRationale);
 
     // 2. Test events.csv
-    const eventsCsvRes = await request.get('/api/v1/admin/export/events.csv').set('Cookie', adminCookie);
+    const eventsCsvRes = await request
+      .get('/api/v1/admin/export/events.csv')
+      .set('Cookie', adminCookie);
     expect(eventsCsvRes.status).toBe(200);
     expect(eventsCsvRes.headers['content-type']).toContain('text/csv');
     const parsedEvents = parseCsv(eventsCsvRes.text);
     const eventHeaders = parsedEvents[0]!;
     const voidReasonIdx = eventHeaders.indexOf('void_reason');
     expect(voidReasonIdx).toBeGreaterThan(-1);
-    const voidedEventRow = parsedEvents.find((row) => row[voidReasonIdx] === 'assessment_superseded');
+    const voidedEventRow = parsedEvents.find(
+      (row) => row[voidReasonIdx] === 'assessment_superseded',
+    );
     expect(voidedEventRow).toBeDefined();
 
     // 3. Test ledger.csv
-    const ledgerCsvRes = await request.get('/api/v1/admin/export/ledger.csv?waveNumber=1').set('Cookie', adminCookie);
+    const ledgerCsvRes = await request
+      .get('/api/v1/admin/export/ledger.csv?waveNumber=1')
+      .set('Cookie', adminCookie);
     expect(ledgerCsvRes.status).toBe(200);
     expect(ledgerCsvRes.headers['content-type']).toContain('text/csv');
     const parsedLedger = parseCsv(ledgerCsvRes.text);
@@ -351,7 +393,9 @@ describe('Admin Analytics & Exports (TASK-073, TASK-074, TASK-076)', () => {
     expect(ledgerHeaders).toContain('q_after');
 
     // Filter by non-existent wave returns only headers
-    const emptyLedgerRes = await request.get('/api/v1/admin/export/ledger.csv?waveNumber=9999').set('Cookie', adminCookie);
+    const emptyLedgerRes = await request
+      .get('/api/v1/admin/export/ledger.csv?waveNumber=9999')
+      .set('Cookie', adminCookie);
     expect(emptyLedgerRes.status).toBe(200);
     const parsedEmpty = parseCsv(emptyLedgerRes.text);
     expect(parsedEmpty.length).toBe(1); // header only
@@ -403,7 +447,9 @@ describe('Admin Analytics & Exports (TASK-073, TASK-074, TASK-076)', () => {
       [secondLiker.id, postId],
     );
 
-    const spreadRes = await request.get('/api/v1/admin/analytics/spread').set('Cookie', adminCookie);
+    const spreadRes = await request
+      .get('/api/v1/admin/analytics/spread')
+      .set('Cookie', adminCookie);
     expect(spreadRes.status).toBe(200);
     expect(spreadRes.body.items).toEqual([
       {

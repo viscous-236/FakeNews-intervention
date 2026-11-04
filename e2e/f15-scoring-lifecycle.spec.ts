@@ -1,24 +1,30 @@
 import { test, expect } from '@playwright/test';
-import { loginUser } from './helpers/auth.js';
 
-test.describe('F15: Comprehensive Scoring Lifecycle, Like Penalties, and Retraction', () => {
-  test('verifies like penalty, reshare retraction before finalization, and immutable score after finalization', async ({ page }) => {
-    // 1. Login as admin user
-    await loginUser(page, 'e2eadmin', 'AdminPass123!');
-
-    // 2. Navigate to score page to inspect baseline score
+/**
+ * F15 (TEST-108): the scoring lifecycle as the user sees it. The numerical
+ * assertions on like penalties, retraction before finalization and ledger
+ * immutability run against the real database in apps/api/test (TEST-029 to
+ * TEST-033); this spec checks the screens that expose them.
+ */
+test.describe('F15: Scoring lifecycle on screen', () => {
+  test('score page, composer, events and waves work together', async ({ page }) => {
     await page.goto('/score');
-    await expect(page.locator('text=Reputation Score')).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'My score' })).toBeVisible();
+    const pending = page.getByRole('heading', { level: 2, name: 'Pending in this wave' });
+    await expect(pending).toBeVisible();
+    await expect(page.getByText('Projected change σ × R').first()).toBeVisible();
 
-    // 3. Post creation and feed interaction
     await page.goto('/');
-    const testPostContent = `Post created for F15 scoring lifecycle test ${Date.now()} with unique identification.`;
-    await page.locator('textarea').first().fill(testPostContent);
-    await page.locator('button:has-text("Post")').first().click();
-    await expect(page.locator(`text=${testPostContent}`)).toBeVisible();
+    const body = `Post created for F15 scoring lifecycle test ${Date.now()} with unique identification.`;
+    await page.locator('#composer-body').fill(body);
+    await page.getByRole('button', { name: 'Post', exact: true }).click();
+    await expect(page.getByText(body)).toBeVisible();
+    // The author sees the automated-check status on their own post; nobody else does.
+    await expect(page.getByText(/Automated check/).first()).toBeVisible();
 
-    // 4. Admin waves verification
     await page.goto('/admin/waves');
-    await expect(page.locator('text=Reputation Waves')).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Waves' })).toBeVisible();
+    await expect(page.getByText(/Wave \d+ is open/)).toBeVisible();
+    await expect(page.getByText('Eligible events')).toBeVisible();
   });
 });

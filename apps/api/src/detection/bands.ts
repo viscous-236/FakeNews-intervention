@@ -25,10 +25,7 @@ export interface BandThresholds {
  * @returns DetectionBand ('likely_fake' | 'uncertain' | 'likely_real')
  * @throws Error if pFake is not a finite number in [0, 1]
  */
-export function classifyBand(
-  pFake: number,
-  thresholds?: BandThresholds,
-): DetectionBand {
+export function classifyBand(pFake: number, thresholds?: BandThresholds): DetectionBand {
   if (
     typeof pFake !== 'number' ||
     Number.isNaN(pFake) ||
@@ -41,10 +38,8 @@ export function classifyBand(
     );
   }
 
-  const fakeThresholdHigh =
-    thresholds?.fakeThresholdHigh ?? config.FAKE_THRESHOLD_HIGH;
-  const realThresholdLow =
-    thresholds?.realThresholdLow ?? config.REAL_THRESHOLD_LOW;
+  const fakeThresholdHigh = thresholds?.fakeThresholdHigh ?? config.FAKE_THRESHOLD_HIGH;
+  const realThresholdLow = thresholds?.realThresholdLow ?? config.REAL_THRESHOLD_LOW;
 
   if (pFake >= fakeThresholdHigh) {
     return 'likely_fake';

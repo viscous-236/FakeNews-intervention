@@ -1,197 +1,267 @@
-import React, { useState, useEffect } from 'react';
-import { Button } from '../../components/ui/Button';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { flatten, useAdminLedger, useAdminWaves, useFinalizeWave } from '../../api/hooks';
 import { copy } from '../../copy';
-import { WaveItem } from '../../types';
-import { api } from '../../api/client';
-import { Waves, CheckCircle2, Loader2 } from 'lucide-react';
+import { errorMessage } from '../../api/client';
+import { formatDateTime, signed, signedDecimal } from '../../lib/format';
+import type { WaveItem } from '../../types';
+import { Button } from '../../components/ui/Button';
+import { ConfirmDialog } from '../../components/ui/Modal';
+import { Pill } from '../../components/ui/Pill';
+import {
+  EmptyState,
+  ErrorState,
+  LoadMore,
+  LoadingBlock,
+  Notice,
+  PageHeader,
+  Panel,
+  SectionTitle,
+  Skeleton,
+} from '../../components/ui/Page';
 
-interface CurrentWaveInfo {
-  id: string;
-  number: number;
-  openedAt: string;
-}
-
-export const AdminWavesPage: React.FC = () => {
-  const [currentWave, setCurrentWave] = useState<CurrentWaveInfo | null>(null);
-  const [history, setHistory] = useState<WaveItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isFinalizing, setIsFinalizing] = useState(false);
+/** Waves (TASK-096): the open wave, its pending counts, finalize with confirmation, and the ledger viewer. */
+export function AdminWavesPage(): React.ReactElement {
+  const waves = useAdminWaves();
+  const finalize = useFinalizeWave();
+  const items = flatten(waves.data);
+  const open = items.find((w) => w.status === 'open');
+  const finalized = items.filter((w) => w.status === 'finalized');
+  const [confirm, setConfirm] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [ledgerWave, setLedgerWave] = useState<WaveItem | null>(null);
 
-  const fetchWaveData = async () => {
-    try {
-      setIsLoading(true);
-      const res = await api.get<{
-        items: Array<{
-          id: string;
-          number: number;
-          status: 'open' | 'finalized';
-          opened_at?: string;
-          openedAt?: string;
-          finalized_at?: string | null;
-          finalizedAt?: string | null;
-        }>;
-      }>('/api/v1/admin/waves');
-
-      const items = res.items || [];
-      const open = items.find((w) => w.status === 'open');
-      if (open) {
-        setCurrentWave({
-          id: open.id,
-          number: open.number,
-          openedAt: open.opened_at || open.openedAt || new Date().toISOString(),
-        });
-      } else {
-        setCurrentWave(null);
-      }
-
-      setHistory(
-        items.map((w) => ({
-          id: w.id,
-          number: w.number,
-          status: w.status,
-          openedAt: w.opened_at || w.openedAt || new Date().toISOString(),
-          finalizedAt: w.finalized_at || w.finalizedAt || null,
-        }))
-      );
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : copy.error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void fetchWaveData();
-  }, []);
-
-  const handleFinalizeWave = async () => {
-    if (!currentWave) return;
-    if (!window.confirm(copy.admin.waves.finalizeConfirm)) return;
-
-    try {
-      setIsFinalizing(true);
-      await api.post(`/api/v1/admin/waves/${currentWave.id}/finalize`);
-      await fetchWaveData();
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : copy.error);
-    } finally {
-      setIsFinalizing(false);
-    }
-  };
-
-  if (isLoading) {
+  if (waves.isLoading) return <LoadingBlock />;
+  if (waves.isError)
     return (
-      <div className="py-16 text-center">
-        <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary-600" aria-hidden="true" />
-        <p className="mt-3 text-sm text-neutral-500">{copy.loading}</p>
-      </div>
+      <ErrorState
+        message={errorMessage(waves.error, copy.common.error)}
+        onRetry={() => void waves.refetch()}
+      />
     );
-  }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
-          <Waves className="w-5 h-5 text-primary-600" aria-hidden="true" />
-          <span>{copy.admin.waves.title}</span>
-        </h2>
-        <p className="text-xs text-neutral-500 mt-0.5">
-          Reputation waves partition user interactions into discrete mathematical batches.
-        </p>
-      </div>
-
-      {error && (
-        <div
-          role="alert"
-          className="rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 p-4 text-xs text-red-700 dark:text-red-300"
-        >
-          {error}
-        </div>
-      )}
-
-      {/* Active Open Wave Banner */}
-      {currentWave && (
-        <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-100 dark:border-neutral-700 pb-3">
-            <div>
-              <span className="text-xs font-semibold text-primary-600 dark:text-primary-400 uppercase tracking-wider">
-                {copy.admin.waves.currentWaveHeader}
-              </span>
-              <h3 className="text-xl font-extrabold text-neutral-900 dark:text-neutral-50 font-mono">
-                Wave #{currentWave.number}
-              </h3>
-            </div>
-
+    <div>
+      <PageHeader
+        title={copy.admin.waves.title}
+        subtitle={copy.admin.waves.subtitle}
+        action={
+          open ? (
             <Button
               variant="primary"
-              onClick={handleFinalizeWave}
-              isLoading={isFinalizing}
-              icon={<CheckCircle2 className="w-4 h-4" aria-hidden="true" />}
+              onClick={() => setConfirm(true)}
+              isLoading={finalize.isPending}
             >
-              {isFinalizing ? copy.admin.waves.finalizing : copy.admin.waves.finalizeBtn}
+              {copy.admin.waves.finalize}
             </Button>
-          </div>
+          ) : null
+        }
+      />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div className="p-3 rounded-lg bg-neutral-50 dark:bg-neutral-850 border border-neutral-200 dark:border-neutral-700">
-              <span className="text-neutral-400 block text-[11px]">Opened At</span>
-              <span className="font-semibold text-neutral-800 dark:text-neutral-200">
-                {new Date(currentWave.openedAt).toLocaleString()}
-              </span>
-            </div>
-
-            <div className="p-3 rounded-lg bg-neutral-50 dark:bg-neutral-850 border border-neutral-200 dark:border-neutral-700">
-              <span className="text-neutral-400 block text-[11px]">Status</span>
-              <span className="font-mono font-bold text-green-600 dark:text-green-400 text-sm uppercase">
-                Active / Open
-              </span>
-            </div>
-          </div>
+      {result ? (
+        <div className="mb-4">
+          <Notice tone="positive">{result}</Notice>
         </div>
-      )}
+      ) : null}
+      {error ? (
+        <div className="mb-4">
+          <ErrorState message={error} />
+        </div>
+      ) : null}
 
-      {/* History Archive Table */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
-          {copy.admin.waves.historyTitle}
-        </h3>
+      {open ? (
+        <dl className="grid grid-cols-2 divide-border rounded-card border border-border sm:grid-cols-3 sm:divide-x">
+          <div className="border-b border-border px-5 py-4 sm:border-b-0">
+            <dt className="text-small text-muted">{copy.admin.waves.openWave(open.number)}</dt>
+            <dd className="mt-1 text-body text-ink">
+              {copy.admin.waves.opened(formatDateTime(open.openedAt))}
+            </dd>
+            <dd className="mt-1 font-mono text-small text-muted">{open.formulaVersion}</dd>
+          </div>
+          <div className="border-b border-l border-border px-5 py-4 sm:border-b-0 sm:border-l-0">
+            <dt className="text-small text-muted">{copy.admin.waves.pendingEvents}</dt>
+            <dd className="num mt-1 text-kpi text-accent">{open.pendingEvents ?? 0}</dd>
+          </div>
+          <div className="col-span-2 px-5 py-4 sm:col-span-1">
+            <dt className="text-small text-muted">{copy.admin.waves.heldEvents}</dt>
+            <dd className="num mt-1 text-kpi text-ink">{open.heldEvents ?? 0}</dd>
+          </div>
+        </dl>
+      ) : null}
 
-        {history.length === 0 ? (
-          <p className="text-xs text-neutral-400">No past finalized waves recorded.</p>
+      <section className="mt-8" aria-labelledby="waves-history">
+        <SectionTitle>
+          <span id="waves-history">{copy.admin.waves.historyTitle}</span>
+        </SectionTitle>
+        {finalized.length === 0 ? (
+          <EmptyState>{copy.admin.waves.noHistory}</EmptyState>
         ) : (
-          <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 shadow-sm overflow-x-auto">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-neutral-50 dark:bg-neutral-850 border-b border-neutral-200 dark:border-neutral-700 text-neutral-500 uppercase font-semibold">
-                <tr>
-                  <th className="py-3 px-4">Wave Number</th>
-                  <th className="py-3 px-3">Status</th>
-                  <th className="py-3 px-3">Opened</th>
-                  <th className="py-3 px-3">Finalized</th>
+          <div className="overflow-x-auto">
+            <table className="w-full text-body">
+              <thead>
+                <tr className="text-left text-small text-muted">
+                  <th className="py-2 pr-3 font-normal">{copy.admin.waves.columns.wave}</th>
+                  <th className="py-2 pr-3 font-normal">{copy.admin.waves.columns.opened}</th>
+                  <th className="py-2 pr-3 font-normal">{copy.admin.waves.columns.finalized}</th>
+                  <th className="py-2 pr-3 font-normal">{copy.admin.waves.columns.by}</th>
+                  <th className="num py-2 pr-3 text-right font-normal">
+                    {copy.admin.waves.columns.usersScored}
+                  </th>
+                  <th className="num py-2 pr-3 text-right font-normal">
+                    {copy.admin.waves.columns.eventsCounted}
+                  </th>
+                  <th className="py-2 font-normal" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-700">
-                {history.map((w) => (
-                  <tr key={w.number} className="hover:bg-neutral-50 dark:hover:bg-neutral-750">
-                    <td className="py-3 px-4 font-mono font-bold">#{w.number}</td>
-                    <td className="py-3 px-3">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-neutral-100 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-200">
-                        {w.status}
-                      </span>
+              <tbody className="divide-y divide-rule">
+                {finalized.map((w) => (
+                  <tr key={w.id} className="h-row">
+                    <td className="num pr-3 font-medium text-ink">{w.number}</td>
+                    <td className="pr-3 text-muted">{formatDateTime(w.openedAt)}</td>
+                    <td className="pr-3 text-muted">
+                      {w.finalizedAt ? formatDateTime(w.finalizedAt) : copy.common.none}
                     </td>
-                    <td className="py-3 px-3 text-neutral-500">
-                      {new Date(w.openedAt).toLocaleDateString()}
+                    <td className="pr-3">
+                      <Pill tone="neutral">
+                        {w.finalizedBySystem ? copy.admin.waves.bySystem : copy.admin.waves.byAdmin}
+                      </Pill>
                     </td>
-                    <td className="py-3 px-3 text-neutral-500">
-                      {w.finalizedAt ? new Date(w.finalizedAt).toLocaleDateString() : '—'}
+                    <td className="num pr-3 text-right">{w.usersScored ?? copy.common.none}</td>
+                    <td className="num pr-3 text-right">{w.eventsCounted ?? copy.common.none}</td>
+                    <td className="text-right">
+                      <Button
+                        size="sm"
+                        variant={ledgerWave?.id === w.id ? 'secondary' : 'ghost'}
+                        onClick={() => setLedgerWave(ledgerWave?.id === w.id ? null : w)}
+                      >
+                        {copy.admin.waves.ledger}
+                      </Button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <LoadMore
+              hasMore={Boolean(waves.hasNextPage)}
+              isLoading={waves.isFetchingNextPage}
+              onLoad={() => void waves.fetchNextPage()}
+            />
           </div>
         )}
-      </div>
+      </section>
+
+      {ledgerWave ? <LedgerViewer wave={ledgerWave} /> : null}
+
+      <ConfirmDialog
+        isOpen={confirm && Boolean(open)}
+        onClose={() => setConfirm(false)}
+        title={copy.admin.waves.confirmTitle(open?.number ?? 0)}
+        body={copy.admin.waves.confirmBody}
+        confirmLabel={copy.admin.waves.finalize}
+        isLoading={finalize.isPending}
+        onConfirm={() => {
+          if (!open) return;
+          setError(null);
+          finalize.mutate(open.id, {
+            onSuccess: (r) => {
+              setConfirm(false);
+              setResult(copy.admin.waves.finalized(r.wave.number, r.usersScored, r.eventsCounted));
+            },
+            onError: (err) => {
+              setConfirm(false);
+              setError(errorMessage(err, copy.common.error));
+            },
+          });
+        }}
+      />
     </div>
   );
-};
+}
+
+function LedgerViewer({ wave }: { wave: WaveItem }): React.ReactElement {
+  const ledger = useAdminLedger(wave.id);
+  const rows = flatten(ledger.data);
+  return (
+    <section className="mt-8" aria-labelledby="ledger-title">
+      <SectionTitle>
+        <span id="ledger-title">{copy.admin.waves.ledgerTitle(wave.number)}</span>
+      </SectionTitle>
+      <Panel padded={false}>
+        {ledger.isLoading ? (
+          <div className="p-5">
+            <Skeleton lines={4} />
+          </div>
+        ) : ledger.isError ? (
+          <div className="p-5">
+            <ErrorState
+              message={errorMessage(ledger.error, copy.common.error)}
+              onRetry={() => void ledger.refetch()}
+              compact
+            />
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="p-5">
+            <EmptyState>{copy.admin.waves.ledgerEmpty}</EmptyState>
+          </div>
+        ) : (
+          <div className="overflow-x-auto px-5">
+            <table className="w-full text-body">
+              <thead>
+                <tr className="text-left text-small text-muted">
+                  <th className="py-2 pr-3 font-normal">{copy.admin.waves.user}</th>
+                  <th className="num py-2 pr-3 text-right font-normal">
+                    {copy.score.columns.qBefore}
+                  </th>
+                  <th className="num py-2 pr-3 text-right font-normal">
+                    {copy.score.columns.nPos}
+                  </th>
+                  <th className="num py-2 pr-3 text-right font-normal">
+                    {copy.score.columns.nNeg}
+                  </th>
+                  <th className="num py-2 pr-3 text-right font-normal">
+                    {copy.score.columns.nAdj}
+                  </th>
+                  <th className="num py-2 pr-3 text-right font-normal">{copy.score.columns.r}</th>
+                  <th className="num py-2 pr-3 text-right font-normal">σ</th>
+                  <th className="num py-2 pr-3 text-right font-normal">
+                    {copy.score.columns.delta}
+                  </th>
+                  <th className="num py-2 text-right font-normal">{copy.score.columns.qAfter}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-rule">
+                {rows.map((r) => (
+                  <tr key={r.user.id} className="h-row">
+                    <td className="pr-3">
+                      <Link to={`/u/${r.user.username}`} className="text-ink hover:underline">
+                        @{r.user.username}
+                      </Link>
+                    </td>
+                    <td className="num pr-3 text-right text-muted">{r.qBefore}</td>
+                    <td className="num pr-3 text-right">{r.nPos}</td>
+                    <td className="num pr-3 text-right">{r.nNeg}</td>
+                    <td className="num pr-3 text-right">{signed(r.nAdj)}</td>
+                    <td className="num pr-3 text-right">{signed(r.r)}</td>
+                    <td className="num pr-3 text-right text-muted">{r.sigmaUsed}</td>
+                    <td
+                      className={`num pr-3 text-right ${Number(r.delta) < 0 ? 'text-negative' : Number(r.delta) > 0 ? 'text-positive' : ''}`}
+                    >
+                      {signedDecimal(r.delta)}
+                    </td>
+                    <td className="num text-right font-medium text-ink">{r.qAfter}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <LoadMore
+              hasMore={Boolean(ledger.hasNextPage)}
+              isLoading={ledger.isFetchingNextPage}
+              onLoad={() => void ledger.fetchNextPage()}
+            />
+          </div>
+        )}
+      </Panel>
+    </section>
+  );
+}

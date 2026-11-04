@@ -35,7 +35,6 @@ describe('Media Module & S3 Storage (TASK-041, REQ-022)', () => {
       email: 'media@example.com',
       password: 'password12345',
       displayName: 'Media Uploader',
-      emailVerified: true,
     });
     activeUserId = user.id;
 
@@ -145,10 +144,7 @@ describe('Media Module & S3 Storage (TASK-041, REQ-022)', () => {
     expect(res.body.height).toBe(80);
 
     // Verify DB entry
-    const dbRes = await pool.query(
-      `SELECT * FROM media WHERE id = $1`,
-      [res.body.id],
-    );
+    const dbRes = await pool.query(`SELECT * FROM media WHERE id = $1`, [res.body.id]);
     expect(dbRes.rows.length).toBe(1);
     const mediaRow = dbRes.rows[0];
     expect(mediaRow.owner_id).toBe(activeUserId);
@@ -211,10 +207,9 @@ describe('Media Module & S3 Storage (TASK-041, REQ-022)', () => {
     expect(youngPurged).toBe(0);
 
     // Manually age the media in DB to 25 hours ago
-    await pool.query(
-      `UPDATE media SET created_at = now() - interval '25 hours' WHERE id = $1`,
-      [orphanId],
-    );
+    await pool.query(`UPDATE media SET created_at = now() - interval '25 hours' WHERE id = $1`, [
+      orphanId,
+    ]);
 
     // Now run cleanup — should purge the orphaned row
     const purged = await cleanupOrphanedMedia(24);

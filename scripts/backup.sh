@@ -24,9 +24,9 @@ echo "==> Creating database backup to ${DEST_FILE}..."
 if command -v pg_dump >/dev/null 2>&1; then
   pg_dump --format=custom --no-owner --no-privileges --dbname="${DATABASE_URL}" --file="${DEST_FILE}"
 else
-  # Fallback to docker compose container
+  # Fallback to the docker compose container (POSTGRES_USER=postgres, database app)
   docker compose -f "$ROOT_DIR/docker-compose.yml" exec -T postgres \
-    pg_dump --format=custom --no-owner --no-privileges -U app app > "${DEST_FILE}"
+    pg_dump --format=custom --no-owner --no-privileges -U postgres app > "${DEST_FILE}"
 fi
 
 FILE_SIZE="$(du -h "${DEST_FILE}" | cut -f1)"

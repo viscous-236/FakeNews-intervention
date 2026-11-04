@@ -8,7 +8,6 @@ import { Router, Request, Response, NextFunction } from 'express';
 import {
   registerSchema,
   loginSchema,
-  verifyEmailSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
   changePasswordSchema,
@@ -19,7 +18,6 @@ import {
   registerLimiter,
   loginLimiter,
   forgotPasswordLimiter,
-  resendVerificationLimiter,
 } from '../../middleware/rateLimit.js';
 import { requireAuth } from '../../middleware/auth.js';
 import {
@@ -27,8 +25,6 @@ import {
   login,
   logout,
   toMeUser,
-  verifyEmail,
-  resendVerification,
   forgotPassword,
   resetPassword,
   changePassword,
@@ -112,42 +108,9 @@ authRouter.post(
 );
 
 // GET /auth/me
-authRouter.get(
-  '/auth/me',
-  requireAuth,
-  (req: Request, res: Response): void => {
-    res.status(200).json({ user: toMeUser(req.user!) });
-  },
-);
-
-// POST /auth/verify-email
-authRouter.post(
-  '/auth/verify-email',
-  validate({ body: verifyEmailSchema }),
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      await verifyEmail(req.body.token);
-      res.status(204).end();
-    } catch (err) {
-      next(err);
-    }
-  },
-);
-
-// POST /auth/resend-verification
-authRouter.post(
-  '/auth/resend-verification',
-  requireAuth,
-  resendVerificationLimiter,
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      await resendVerification(req.user!.id);
-      res.status(204).end();
-    } catch (err) {
-      next(err);
-    }
-  },
-);
+authRouter.get('/auth/me', requireAuth, (req: Request, res: Response): void => {
+  res.status(200).json({ user: toMeUser(req.user!) });
+});
 
 // POST /auth/forgot-password
 authRouter.post(

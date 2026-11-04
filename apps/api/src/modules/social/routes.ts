@@ -2,7 +2,7 @@
 
 import { NextFunction, Request, Response, Router } from 'express';
 import { commentSchema, listCommentsQuerySchema, reshareSchema } from '@app/shared';
-import { requireActive, requireAuth } from '../../middleware/auth.js';
+import { requireActive } from '../../middleware/auth.js';
 import { commentsLimiter, likesLimiter, resharesLimiter } from '../../middleware/rateLimit.js';
 import { validate } from '../../middleware/validate.js';
 import { createComment, deleteComment, listComments } from './comments.js';
@@ -93,7 +93,12 @@ socialRouter.post(
   validate({ body: commentSchema }),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const comment = await createComment(req.user!.id, req.params.id as string, req.body.body);
+      const comment = await createComment(
+        req.user!.id,
+        req.params.id as string,
+        req.body.body,
+        req.user!.role === 'admin',
+      );
       res.status(201).json(comment);
     } catch (error) {
       next(error);
@@ -103,7 +108,7 @@ socialRouter.post(
 
 socialRouter.delete(
   '/comments/:id',
-  requireAuth,
+  requireActive,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       await deleteComment(req.params.id as string, req.user!.id, req.user!.role === 'admin');

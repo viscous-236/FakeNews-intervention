@@ -4,7 +4,7 @@
  * Tests for Prometheus metrics and Sentry integration.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import supertest from 'supertest';
 import { createApp } from '../../src/app.js';
 import { config } from '../../src/config.js';
@@ -54,10 +54,9 @@ describe('TASK-104: Prometheus Metrics and Sentry Integration', () => {
       expect(resBearer.status).toBe(200);
       expect(resBearer.text).toContain('http_requests_total');
 
-      // 4. With correct query parameter -> 200 OK
+      // 4. A query-string token is not an accepted credential (Section 1.7: Bearer only)
       const resQuery = await request.get('/metrics?token=secret-test-token-xyz');
-      expect(resQuery.status).toBe(200);
-      expect(resQuery.text).toContain('http_requests_total');
+      expect(resQuery.status).toBe(401);
     } finally {
       (config as { METRICS_TOKEN?: string }).METRICS_TOKEN = originalToken;
     }

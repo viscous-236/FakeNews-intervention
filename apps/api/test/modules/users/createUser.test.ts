@@ -5,7 +5,6 @@
  *   - Creates user with argon2id hash and requested sigma
  *   - Creates admin user with requested sigma
  *   - Rejects sigma < 0 or > 1
- *   - Sets email_verified_at when requested
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -27,14 +26,12 @@ describe('createUser (TASK-016)', () => {
       email: 'user1@example.com',
       password: 'validPassword123!',
       displayName: 'Test User One',
-      sigma: 0.750,
-      emailVerified: true,
+      sigma: 0.75,
     });
 
     expect(user.username).toBe('test_user_1');
     expect(user.role).toBe('user');
-    expect(parseFloat(user.sigma)).toBe(0.750);
-    expect(user.email_verified_at).not.toBeNull();
+    expect(parseFloat(user.sigma)).toBe(0.75);
     expect(user.password_hash).toMatch(/^\$argon2id\$/);
 
     const valid = await verifyPassword(user.password_hash, 'validPassword123!');
@@ -48,13 +45,12 @@ describe('createUser (TASK-016)', () => {
       password: 'adminPassword123!',
       displayName: 'Test Admin One',
       role: 'admin',
-      sigma: 0.250,
-      emailVerified: true,
+      sigma: 0.25,
     });
 
     expect(admin.username).toBe('test_admin_1');
     expect(admin.role).toBe('admin');
-    expect(parseFloat(admin.sigma)).toBe(0.250);
+    expect(parseFloat(admin.sigma)).toBe(0.25);
   });
 
   it('defaults sigma to config.SIGMA_DEFAULT (0.500) when omitted', async () => {
@@ -65,8 +61,7 @@ describe('createUser (TASK-016)', () => {
       displayName: 'Default Sigma',
     });
 
-    expect(parseFloat(user.sigma)).toBe(0.500);
-    expect(user.email_verified_at).toBeNull();
+    expect(parseFloat(user.sigma)).toBe(0.5);
   });
 
   it('rejects sigma outside [0, 1] with negative value', async () => {

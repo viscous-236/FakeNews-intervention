@@ -144,7 +144,7 @@ Port: 8001 (local), 80/443 (production via Render).
   revision and returns HTTP 202 `{detectionId}`.
 - `POST /api/v1/admin/detections/:id/requeue` accepts only `failed_permanent`
   jobs, resets retry state, and returns HTTP 202. Other states return 409.
-- Both queue mutations require an active verified administrator and record an
+- Both queue mutations require an active administrator and record an
   audit entry. Neither changes assessments or reputation.
 
 The worker reads historical text for old revisions and fences completion by the
@@ -170,5 +170,5 @@ SQL migrations into `dist/db/migrations` for production readiness checks.
 Administrator operations also expose `GET /api/v1/admin/users`,
 `GET /api/v1/admin/users/:id`, suspend/unsuspend actions, post release/delete,
 `GET /api/v1/admin/audit`, wave and ledger inspection, wave finalization, and
-`POST /api/v1/admin/verify-scores`. These routes require an active verified
+`POST /api/v1/admin/verify-scores`. These routes require an active
 administrator; mutating actions create audit records.

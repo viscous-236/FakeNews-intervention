@@ -41,7 +41,11 @@ async function checkEventCap(
   userId: string,
   kind: 'RESPONSIBLE_POST' | 'RESPONSIBLE_RESHARE' | 'VALID_REPORT',
   maxCap: number,
-): Promise<{ status: 'eligible' | 'voided'; voidReason: 'cap_exceeded' | null; waveId: string | null }> {
+): Promise<{
+  status: 'eligible' | 'voided';
+  voidReason: 'cap_exceeded' | null;
+  waveId: string | null;
+}> {
   // Serialize count-and-insert across different posts for the same user.
   // NO KEY UPDATE remains compatible with foreign-key KEY SHARE locks.
   await tx.query('SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE', [userId]);
@@ -282,7 +286,15 @@ export async function createEventsForAssessment(
             user_id, post_id, assessment_id, report_id, kind, value, status, void_reason, wave_id
           ) VALUES ($1, $2, $3, $4, 'VALID_REPORT', 1, $5, $6, $7)
           ON CONFLICT (assessment_id, user_id, kind) WHERE kind <> 'REVERSAL' DO NOTHING`,
-          [rep.reporter_id, post.id, assessment.id, rep.id, repCap.status, repCap.voidReason, repCap.waveId],
+          [
+            rep.reporter_id,
+            post.id,
+            assessment.id,
+            rep.id,
+            repCap.status,
+            repCap.voidReason,
+            repCap.waveId,
+          ],
         );
         inc('VALID_REPORT');
       }
@@ -399,7 +411,15 @@ export async function syncReshareEventOnCreate(
           user_id, post_id, assessment_id, reshare_post_id, kind, value, status, void_reason, wave_id
         ) VALUES ($1, $2, $3, $4, 'RESPONSIBLE_RESHARE', 1, $5, $6, $7)
         ON CONFLICT (assessment_id, user_id, kind) WHERE kind <> 'REVERSAL' DO NOTHING`,
-        [resharePost.author_id, assess.post_id, assess.id, resharePost.id, rCap.status, rCap.voidReason, rCap.waveId],
+        [
+          resharePost.author_id,
+          assess.post_id,
+          assess.id,
+          resharePost.id,
+          rCap.status,
+          rCap.voidReason,
+          rCap.waveId,
+        ],
       );
     }
   }
@@ -413,26 +433,26 @@ export async function retractReshareEventOnDelete(
   userId: string,
   originalPostId: string,
 ): Promise<void> {
+  // Lock the open wave first so a concurrent finalization has either
+  // committed (the event is now counted and stays untouched) or waits.
+  await getOpenWaveId(tx);
+
   const events = await tx.query<{ id: string; status: string }>(
     `SELECT id, status FROM reputation_events
      WHERE user_id = $1 AND post_id = $2 AND kind IN ('MISINFO_RESHARE', 'RESPONSIBLE_RESHARE')
-       AND status IN ('eligible', 'held')`,
+       AND status IN ('eligible', 'held')
+     FOR UPDATE`,
     [userId, originalPostId],
   );
 
-  if (events.rows.length === 0) {
-    return;
-  }
-
-  await getOpenWaveId(tx);
-
   for (const e of events.rows) {
-    await tx.query(
+    const voided = await tx.query(
       `UPDATE reputation_events
        SET status = 'voided', void_reason = 'interaction_retracted', wave_id = NULL
-       WHERE id = $1`,
+       WHERE id = $1 AND status IN ('eligible', 'held')`,
       [e.id],
     );
+    if ((voided.rowCount ?? 0) === 0) continue; // counted meanwhile: immutable (RUL-019)
 
     await tx.query(
       `UPDATE appeals
@@ -470,7 +490,12 @@ export async function syncLikeEventOnLike(
   );
 
   const assess = currentAssess.rows[0];
-  if (!assess || assess.source !== 'admin' || assess.verdict !== 'fake' || assess.author_id === userId) {
+  if (
+    !assess ||
+    assess.source !== 'admin' ||
+    assess.verdict !== 'fake' ||
+    assess.author_id === userId
+  ) {
     return;
   }
 
@@ -509,25 +534,25 @@ export async function retractLikeEventOnUnlike(
   userId: string,
   originalPostId: string,
 ): Promise<void> {
+  // Lock the open wave first so a concurrent finalization has either
+  // committed (the event is now counted and stays untouched) or waits.
+  await getOpenWaveId(tx);
+
   const events = await tx.query<{ id: string }>(
     `SELECT id FROM reputation_events
-     WHERE user_id = $1 AND post_id = $2 AND kind = 'MISINFO_LIKE' AND status IN ('eligible', 'held')`,
+     WHERE user_id = $1 AND post_id = $2 AND kind = 'MISINFO_LIKE' AND status IN ('eligible', 'held')
+     FOR UPDATE`,
     [userId, originalPostId],
   );
 
-  if (events.rows.length === 0) {
-    return;
-  }
-
-  await getOpenWaveId(tx);
-
   for (const e of events.rows) {
-    await tx.query(
+    const voided = await tx.query(
       `UPDATE reputation_events
        SET status = 'voided', void_reason = 'interaction_retracted', wave_id = NULL
-       WHERE id = $1`,
+       WHERE id = $1 AND status IN ('eligible', 'held')`,
       [e.id],
     );
+    if ((voided.rowCount ?? 0) === 0) continue; // counted meanwhile: immutable (RUL-032)
 
     await tx.query(
       `UPDATE appeals

@@ -9,7 +9,6 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import crypto from 'crypto';
 import supertest from 'supertest';
 import { createApp } from '../../../src/app.js';
 import { getTestPool, closeTestPool, truncateAll } from '../../setup/db.js';
@@ -55,7 +54,7 @@ function extractCookie(headers: Record<string, unknown>): string {
   return Array.isArray(h) ? String(h[0] || '') : typeof h === 'string' ? h : '';
 }
 
-describe('Auth Tokens and Email Flows (TEST-046, TEST-047)', () => {
+describe('Auth Tokens and Email Flows (TEST-047)', () => {
   const app = createApp();
   const request = supertest(app);
 
@@ -66,76 +65,6 @@ describe('Auth Tokens and Email Flows (TEST-046, TEST-047)', () => {
 
   afterAll(async () => {
     await closeTestPool();
-  });
-
-  it('TEST-046: Email verification through real Mailpit message works once; expired or reused token fails', async () => {
-    const pool = getTestPool();
-
-    // 1. Register a user
-    const regRes = await request
-      .post('/api/v1/auth/register')
-      .set('Origin', config.APP_ORIGIN)
-      .set('X-Forwarded-For', '198.51.100.1')
-      .send({
-        username: 'verify_user_046',
-        email: 'verify046@example.com',
-        password: 'securePassword123',
-        displayName: 'Verify User',
-      });
-    expect(regRes.status).toBe(201);
-    expect(regRes.body.user.emailVerified).toBe(false);
-
-    // 2. Dispatch emails via background outbox runner
-    const dispatched = await sendQueuedEmails();
-    expect(dispatched).toBeGreaterThanOrEqual(1);
-
-    // 3. Inspect real Mailpit message delivered over SMTP
-    const emailBody = await getLatestMailpitMessage('verify046@example.com');
-    expect(emailBody).toBeTruthy();
-    expect(emailBody).toContain('/verify-email?token=');
-
-    // Extract raw token from email URL
-    const tokenMatch = emailBody!.match(/token=([a-zA-Z0-9_-]+)/);
-    expect(tokenMatch).toBeTruthy();
-    const token = tokenMatch![1];
-
-    // 4. Verify email with valid token
-    const verifyRes = await request
-      .post('/api/v1/auth/verify-email')
-      .set('Origin', config.APP_ORIGIN)
-      .send({ token });
-    expect(verifyRes.status).toBe(204);
-
-    // Confirm user is now verified in database
-    const userDbRes = await pool.query(
-      `SELECT email_verified_at FROM users WHERE email = $1`,
-      ['verify046@example.com'],
-    );
-    expect(userDbRes.rows[0].email_verified_at).not.toBeNull();
-
-    // 5. Reused token must fail
-    const reuseRes = await request
-      .post('/api/v1/auth/verify-email')
-      .set('Origin', config.APP_ORIGIN)
-      .send({ token });
-    expect(reuseRes.status).toBe(400);
-    expect(reuseRes.body.error.code).toBe('VALIDATION_ERROR');
-
-    // 6. Expired token must fail
-    const rawExpiredToken = 'expired-dummy-token-abc';
-    const expiredHash = crypto.createHash('sha256').update(rawExpiredToken).digest('hex');
-    await pool.query(
-      `INSERT INTO email_tokens (user_id, purpose, token_hash, expires_at)
-       VALUES ($1, 'verify_email', $2, now() - interval '1 hour')`,
-      [regRes.body.user.id, expiredHash],
-    );
-
-    const expiredRes = await request
-      .post('/api/v1/auth/verify-email')
-      .set('Origin', config.APP_ORIGIN)
-      .send({ token: rawExpiredToken });
-    expect(expiredRes.status).toBe(400);
-    expect(expiredRes.body.error.code).toBe('VALIDATION_ERROR');
   });
 
   it('TEST-047: Forgot-password for unknown email returns 204 with no mail; reset changes password and deletes all sessions', async () => {
@@ -149,10 +78,9 @@ describe('Auth Tokens and Email Flows (TEST-046, TEST-047)', () => {
       .send({ email: 'ghost_nonexistent@example.com' });
     expect(unknownRes.status).toBe(204);
 
-    const ghostOutbox = await pool.query(
-      `SELECT count(*) FROM email_outbox WHERE to_email = $1`,
-      ['ghost_nonexistent@example.com'],
-    );
+    const ghostOutbox = await pool.query(`SELECT count(*) FROM email_outbox WHERE to_email = $1`, [
+      'ghost_nonexistent@example.com',
+    ]);
     expect(parseInt(ghostOutbox.rows[0].count, 10)).toBe(0);
 
     // 2. Existing user forgot-password
@@ -199,16 +127,13 @@ describe('Auth Tokens and Email Flows (TEST-046, TEST-047)', () => {
     expect(resetRes.status).toBe(204);
 
     // 3. SEC-013: All user sessions deleted
-    const sessionCountRes = await pool.query(
-      `SELECT count(*) FROM sessions WHERE user_id = $1`,
-      [regRes.body.user.id],
-    );
+    const sessionCountRes = await pool.query(`SELECT count(*) FROM sessions WHERE user_id = $1`, [
+      regRes.body.user.id,
+    ]);
     expect(parseInt(sessionCountRes.rows[0].count, 10)).toBe(0);
 
     // Old session cookie no longer works
-    const meRes = await request
-      .get('/api/v1/auth/me')
-      .set('Cookie', initialCookie);
+    const meRes = await request.get('/api/v1/auth/me').set('Cookie', initialCookie);
     expect(meRes.status).toBe(401);
 
     // Old password fails login
@@ -263,9 +188,7 @@ describe('Auth Tokens and Email Flows (TEST-046, TEST-047)', () => {
     const sessionCookie2 = extractCookie(loginRes.headers);
 
     // 3. List sessions on session 2
-    const listRes = await request
-      .get('/api/v1/auth/sessions')
-      .set('Cookie', sessionCookie2);
+    const listRes = await request.get('/api/v1/auth/sessions').set('Cookie', sessionCookie2);
     expect(listRes.status).toBe(200);
     expect(Array.isArray(listRes.body)).toBe(true);
     expect(listRes.body.length).toBe(2);
@@ -296,15 +219,11 @@ describe('Auth Tokens and Email Flows (TEST-046, TEST-047)', () => {
     expect(goodChangeRes.status).toBe(204);
 
     // Session 2 is still valid
-    const me2Res = await request
-      .get('/api/v1/auth/me')
-      .set('Cookie', sessionCookie2);
+    const me2Res = await request.get('/api/v1/auth/me').set('Cookie', sessionCookie2);
     expect(me2Res.status).toBe(200);
 
     // Session 1 is invalidated
-    const me1Res = await request
-      .get('/api/v1/auth/me')
-      .set('Cookie', sessionCookie1);
+    const me1Res = await request.get('/api/v1/auth/me').set('Cookie', sessionCookie1);
     expect(me1Res.status).toBe(401);
 
     // 6. Delete session 2 via DELETE /auth/sessions/:id

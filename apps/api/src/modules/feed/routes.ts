@@ -19,16 +19,11 @@ feedRouter.get(
   validate({ query: listPostsQuerySchema }),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const viewer = req.user
-        ? { id: req.user.id, role: req.user.role }
-        : undefined;
+      const viewer = req.user ? { id: req.user.id, role: req.user.role } : undefined;
       const query = req.query as unknown as { cursor?: string; limit?: number };
       const limit = query.limit ?? 20;
 
-      const result = await getGlobalFeed(
-        { cursor: query.cursor, limit },
-        viewer,
-      );
+      const result = await getGlobalFeed({ cursor: query.cursor, limit }, viewer);
 
       res.status(200).json(result);
     } catch (err) {
@@ -48,10 +43,7 @@ feedRouter.get(
       const query = req.query as unknown as { cursor?: string; limit?: number };
       const limit = query.limit ?? 20;
 
-      const result = await getFollowingFeed(
-        { cursor: query.cursor, limit },
-        viewer,
-      );
+      const result = await getFollowingFeed({ cursor: query.cursor, limit }, viewer);
 
       res.status(200).json(result);
     } catch (err) {

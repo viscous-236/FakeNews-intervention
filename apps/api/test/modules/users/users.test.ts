@@ -48,7 +48,6 @@ describe('Users Module (TASK-040)', () => {
       email: 'target@example.com',
       password: 'targetPassword123',
       displayName: 'Target User',
-      emailVerified: true,
     });
 
     // Manually adjust q in DB using transaction-local override for users_guard_trg
@@ -86,9 +85,7 @@ describe('Users Module (TASK-040)', () => {
     expect(selfLoginRes.status).toBe(200);
     const selfCookie = extractCookie(selfLoginRes.headers);
 
-    const selfRes = await request
-      .get('/api/v1/users/target_score_user')
-      .set('Cookie', selfCookie);
+    const selfRes = await request.get('/api/v1/users/target_score_user').set('Cookie', selfCookie);
     expect(selfRes.status).toBe(200);
     expect(selfRes.body.q).toBe('3.500'); // Visible to self!
 
@@ -99,7 +96,6 @@ describe('Users Module (TASK-040)', () => {
       password: 'adminPassword123',
       displayName: 'Admin Inspector',
       role: 'admin',
-      emailVerified: true,
     });
 
     const adminLoginRes = await request
@@ -124,7 +120,6 @@ describe('Users Module (TASK-040)', () => {
       email: 'other@example.com',
       password: 'otherPassword123',
       displayName: 'Other User',
-      emailVerified: true,
     });
     const otherLoginRes = await request
       .post('/api/v1/auth/login')
@@ -160,7 +155,6 @@ describe('Users Module (TASK-040)', () => {
       email: 'u1@example.com',
       password: 'password12345',
       displayName: 'User 1',
-      emailVerified: true,
     });
 
     const u2 = await createUser({
@@ -168,7 +162,6 @@ describe('Users Module (TASK-040)', () => {
       email: 'u2@example.com',
       password: 'password12345',
       displayName: 'User 2',
-      emailVerified: true,
     });
 
     // Login as u1
@@ -180,36 +173,27 @@ describe('Users Module (TASK-040)', () => {
     const cookieU1 = extractCookie(loginU1.headers);
 
     // Initial check: not following, not blocked
-    const initRes = await request
-      .get('/api/v1/users/user_u2')
-      .set('Cookie', cookieU1);
+    const initRes = await request.get('/api/v1/users/user_u2').set('Cookie', cookieU1);
     expect(initRes.status).toBe(200);
     expect(initRes.body.viewer).toEqual({ following: false, blocked: false });
     expect(initRes.body.counts).toEqual({ posts: 0, followers: 0, following: 0 });
 
     // U1 follows U2
-    await pool.query(
-      `INSERT INTO follows (follower_id, followee_id) VALUES ($1, $2)`,
-      [u1.id, u2.id],
-    );
+    await pool.query(`INSERT INTO follows (follower_id, followee_id) VALUES ($1, $2)`, [
+      u1.id,
+      u2.id,
+    ]);
 
-    const followRes = await request
-      .get('/api/v1/users/user_u2')
-      .set('Cookie', cookieU1);
+    const followRes = await request.get('/api/v1/users/user_u2').set('Cookie', cookieU1);
     expect(followRes.status).toBe(200);
     expect(followRes.body.viewer.following).toBe(true);
     expect(followRes.body.viewer.blocked).toBe(false);
     expect(followRes.body.counts.followers).toBe(1);
 
     // U2 blocks U1
-    await pool.query(
-      `INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)`,
-      [u2.id, u1.id],
-    );
+    await pool.query(`INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)`, [u2.id, u1.id]);
 
-    const blockRes = await request
-      .get('/api/v1/users/user_u2')
-      .set('Cookie', cookieU1);
+    const blockRes = await request.get('/api/v1/users/user_u2').set('Cookie', cookieU1);
     expect(blockRes.status).toBe(200);
     expect(blockRes.body.viewer.blocked).toBe(true);
   });
@@ -223,37 +207,12 @@ describe('Users Module (TASK-040)', () => {
     expect(unauthRes.status).toBe(401);
     expect(unauthRes.body.error.code).toBe('UNAUTHENTICATED');
 
-    // 2. Unverified user -> 403 EMAIL_NOT_VERIFIED (with REQUIRE_EMAIL_VERIFICATION = true)
-    config.REQUIRE_EMAIL_VERIFICATION = true;
-    await createUser({
-      username: 'unverified_guy',
-      email: 'unverified@example.com',
-      password: 'password12345',
-      displayName: 'Unverified Guy',
-      emailVerified: false,
-    });
-    const unverifiedLogin = await request
-      .post('/api/v1/auth/login')
-      .set('Origin', config.APP_ORIGIN)
-      .set('X-Forwarded-For', '192.0.2.20')
-      .send({ identifier: 'unverified_guy', password: 'password12345' });
-    const unverifiedCookie = extractCookie(unverifiedLogin.headers);
-
-    const unverRes = await request
-      .patch('/api/v1/users/me')
-      .set('Origin', config.APP_ORIGIN)
-      .set('Cookie', unverifiedCookie)
-      .send({ displayName: 'New Name' });
-    expect(unverRes.status).toBe(403);
-    expect(unverRes.body.error.code).toBe('EMAIL_NOT_VERIFIED');
-
-    // 3. Suspended user -> 403 ACCOUNT_SUSPENDED
+    // 2. Suspended user -> 403 ACCOUNT_SUSPENDED
     const suspended = await createUser({
       username: 'suspended_guy',
       email: 'suspended@example.com',
       password: 'password12345',
       displayName: 'Suspended Guy',
-      emailVerified: true,
     });
     const pool = getTestPool();
     await pool.query(`UPDATE users SET status = 'suspended' WHERE id = $1`, [suspended.id]);
@@ -280,7 +239,6 @@ describe('Users Module (TASK-040)', () => {
       email: 'strict@example.com',
       password: 'password12345',
       displayName: 'Strict User',
-      emailVerified: true,
     });
     const loginRes = await request
       .post('/api/v1/auth/login')
@@ -325,7 +283,6 @@ describe('Users Module (TASK-040)', () => {
       email: 'patch@example.com',
       password: 'password12345',
       displayName: 'Before Patch',
-      emailVerified: true,
     });
     const loginRes = await request
       .post('/api/v1/auth/login')
@@ -376,8 +333,6 @@ describe('Users Module (TASK-040)', () => {
       .set('Cookie', cookie)
       .send({ avatarMediaId: mediaId });
     expect(goodMediaRes.status).toBe(200);
-    expect(goodMediaRes.body.user.avatarUrl).toBe(
-      `${config.S3_PUBLIC_BASE_URL}/${mediaId}`,
-    );
+    expect(goodMediaRes.body.user.avatarUrl).toBe(`${config.S3_PUBLIC_BASE_URL}/${mediaId}`);
   });
 });

@@ -68,9 +68,7 @@ export interface AppealRow {
   resolved_at: Date | null;
 }
 
-export async function getCurrentOpenWave(
-  client?: PoolClient,
-): Promise<CurrentWaveRow | null> {
+export async function getCurrentOpenWave(client?: PoolClient): Promise<CurrentWaveRow | null> {
   const executor = client ?? getPool();
   const res = await executor.query<CurrentWaveRow>(
     `SELECT id, number, opened_at FROM waves WHERE status = 'open' LIMIT 1`,

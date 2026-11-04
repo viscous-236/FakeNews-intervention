@@ -5,13 +5,14 @@
  */
 
 export { appealEvent } from '../governance/appeals.js';
+import Decimal from 'decimal.js';
 import { config } from '../../config.js';
 import { AppError } from '../../middleware/errors.js';
 import { encodeCursor, decodeCursor, type DecodedCursor } from '../../db/cursor.js';
 import { tierOfValue } from '../../scoring/tier.js';
 import { type ViewerContext } from '../posts/service.js';
 import { findUserByUsername } from '../users/repo.js';
-import { computeR } from '../../scoring/pure.js';
+import { computeR, applyUpdate } from '../../scoring/pure.js';
 import {
   getCurrentOpenWave,
   getPendingAggregateForUser,
@@ -38,6 +39,7 @@ export interface MyScoreResponse {
       nAdj: number;
       r: number;
       projectedDelta: string;
+      projectedQ: string;
     };
   };
   thresholds: {
@@ -94,6 +96,12 @@ export interface AppealOutput {
   resolvedAt: string | null;
 }
 
+/** numeric → string with exactly three decimals, never through a JS float (REQ-003). */
+export function decimalString(value: string | number | null | undefined, fallback = '0'): string {
+  const raw = value === null || value === undefined || value === '' ? fallback : value;
+  return new Decimal(raw).toFixed(3);
+}
+
 function serializeLedgerRow(row: LedgerJoinedRow): LedgerRowOutput {
   return {
     waveNumber: row.wave_number,
@@ -101,10 +109,10 @@ function serializeLedgerRow(row: LedgerJoinedRow): LedgerRowOutput {
     nNeg: row.n_neg,
     nAdj: row.n_adj,
     r: row.r,
-    sigmaUsed: parseFloat(row.sigma_used).toFixed(3),
-    qBefore: parseFloat(row.q_before).toFixed(3),
-    delta: parseFloat(row.delta).toFixed(3),
-    qAfter: parseFloat(row.q_after).toFixed(3),
+    sigmaUsed: decimalString(row.sigma_used),
+    qBefore: decimalString(row.q_before),
+    delta: decimalString(row.delta),
+    qAfter: decimalString(row.q_after),
     formulaVersion: row.formula_version,
     finalizedAt: row.finalized_at ? new Date(row.finalized_at).toISOString() : null,
   };
@@ -157,9 +165,9 @@ export async function getMyScore(user: {
   q: string;
   sigma: string;
 }): Promise<MyScoreResponse> {
-  const qNum = parseFloat(user.q);
-  const sigmaNum = parseFloat(user.sigma);
-  const tier = tierOfValue(qNum);
+  const q = new Decimal(user.q);
+  const sigma = new Decimal(user.sigma);
+  const tier = tierOfValue(user.q);
 
   const openWave = await getCurrentOpenWave();
   let pendingCounts = { nPos: 0, nNeg: 0, nAdj: 0 };
@@ -172,12 +180,14 @@ export async function getMyScore(user: {
     pendingCounts = await getPendingAggregateForUser(user.id, openWave.id);
   }
 
+  // The projection previews what finalizeWave would write; it reuses the
+  // single Equation 2 implementation (REQ-004) and Decimal math (REQ-003).
   const r = computeR(pendingCounts);
-  const delta = sigmaNum * r;
+  const projection = applyUpdate(q, sigma, r);
 
   return {
-    q: (isNaN(qNum) ? 0 : qNum).toFixed(3),
-    sigma: (isNaN(sigmaNum) ? 0.5 : sigmaNum).toFixed(3),
+    q: q.toFixed(3),
+    sigma: sigma.toFixed(3),
     tier,
     currentWave: {
       number: waveNumber,
@@ -187,12 +197,13 @@ export async function getMyScore(user: {
         nNeg: pendingCounts.nNeg,
         nAdj: pendingCounts.nAdj,
         r,
-        projectedDelta: delta.toFixed(3),
+        projectedDelta: projection.delta.toFixed(3),
+        projectedQ: projection.qAfter.toFixed(3),
       },
     },
     thresholds: {
-      trustedMin: config.Q_TRUSTED_MIN.toFixed(3),
-      lowMax: config.Q_LOW_MAX.toFixed(3),
+      trustedMin: new Decimal(config.Q_TRUSTED_MIN).toFixed(3),
+      lowMax: new Decimal(config.Q_LOW_MAX).toFixed(3),
     },
   };
 }
@@ -315,8 +326,7 @@ export async function getUserScore(
     throw new AppError(404, 'NOT_FOUND', 'User not found');
   }
 
-  const qNum = parseFloat(user.q);
-  const tier = tierOfValue(qNum);
+  const tier = tierOfValue(user.q);
 
   const isSelf = viewer?.id === user.id;
   const isAdmin = viewer?.role === 'admin';
@@ -325,7 +335,7 @@ export async function getUserScore(
   if (showFull || isSelf || isAdmin) {
     return {
       tier,
-      q: (isNaN(qNum) ? 0 : qNum).toFixed(3),
+      q: decimalString(user.q),
     };
   }
 

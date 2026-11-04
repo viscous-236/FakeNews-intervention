@@ -28,6 +28,7 @@ import { messagesRouter } from './modules/messages/routes.js';
 import { detectionAdminRouter } from './modules/admin/detectionRoutes.js';
 import { securityMiddleware } from './middleware/security.js';
 import { originCheck } from './middleware/originCheck.js';
+import { globalLimiter } from './middleware/rateLimit.js';
 import { errorHandler, notFoundHandler, AppError, ErrorEnvelope } from './middleware/errors.js';
 import { initSentry } from './sentry.js';
 import { metricsMiddleware, metricsHandler } from './metrics.js';
@@ -61,6 +62,9 @@ export function createApp(): express.Application {
 
   // ---- Origin check (CSRF defense for non-GET/HEAD) ------------------------
   app.use(originCheck);
+
+  // ---- Global rate limit: 300 requests per minute per IP (Section 1.7) ----
+  app.use(globalLimiter);
 
   // ---- Structured logging --------------------------------------------------
   app.use(

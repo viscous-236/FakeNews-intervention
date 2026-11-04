@@ -1,34 +1,43 @@
 import { test, expect } from '@playwright/test';
-import { loginUser } from './helpers/auth.js';
 import { checkA11y } from './helpers/a11y.js';
 
-test.describe('F06–F10: Social Connections, Search, Notifications, and Messaging', () => {
-  test.beforeEach(async ({ page }) => {
-    await loginUser(page, 'e2eadmin', 'AdminPass123!');
-  });
-
-  test('searches for posts and users with truth weighting tabs', async ({ page }) => {
+test.describe('F06–F10: Search, notifications and messaging', () => {
+  test('searches posts and people with the two tabs', async ({ page }) => {
     await page.goto('/search?q=test');
-    await expect(page.locator('input[type="search"], input[placeholder*="Search"]')).toBeVisible();
-
-    // Verify tabs
-    await expect(page.locator('button:has-text("Posts")')).toBeVisible();
-    await expect(page.locator('button:has-text("Users")')).toBeVisible();
-
+    await expect(page.locator('#search-page-input')).toHaveValue('test');
+    await expect(page.getByRole('tab', { name: 'Posts' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'People' })).toBeVisible();
+    await page.getByRole('tab', { name: 'People' }).click();
+    await expect(page).toHaveURL(/tab=users/);
     await checkA11y(page, 'Search Page');
   });
 
-  test('navigates to notifications page and verifies layout and a11y', async ({ page }) => {
+  test('renders the notifications page and passes the accessibility audit', async ({ page }) => {
     await page.goto('/notifications');
-    await expect(page.locator('h1, h2')).toContainText(['Notifications']);
-
+    await expect(page.getByRole('heading', { level: 1, name: 'Notifications' })).toBeVisible();
     await checkA11y(page, 'Notifications Page');
   });
 
-  test('navigates to direct messages and verifies chat workspace', async ({ page }) => {
+  test('renders the messages workspace and passes the accessibility audit', async ({ page }) => {
     await page.goto('/messages');
-    await expect(page.locator('text=Messages')).toBeVisible();
-
+    await expect(page.getByRole('heading', { level: 1, name: 'Messages' })).toBeVisible();
     await checkA11y(page, 'Messages Workspace');
+  });
+
+  test('renders settings with every section', async ({ page }) => {
+    await page.goto('/settings');
+    await expect(page.getByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
+    for (const section of [
+      'Profile',
+      'Email',
+      'Password',
+      'Sessions',
+      'Blocked accounts',
+      'Your data',
+      'Delete account',
+    ]) {
+      await expect(page.getByRole('heading', { level: 2, name: section })).toBeVisible();
+    }
+    await checkA11y(page, 'Settings Page');
   });
 });

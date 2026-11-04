@@ -10,10 +10,12 @@ import { validate } from '../../src/middleware/validate.js';
 import { errorHandler } from '../../src/middleware/errors.js';
 
 describe('validate middleware (REQ-010)', () => {
-  const schema = z.object({
-    username: z.string().min(3),
-    count: z.number().int().positive(),
-  }).strict();
+  const schema = z
+    .object({
+      username: z.string().min(3),
+      count: z.number().int().positive(),
+    })
+    .strict();
 
   const app = express();
   app.use(express.json());
@@ -32,9 +34,7 @@ describe('validate middleware (REQ-010)', () => {
   const request = supertest(app);
 
   it('passes on valid request body', async () => {
-    const res = await request
-      .post('/validate-body')
-      .send({ username: 'alice', count: 5 });
+    const res = await request.post('/validate-body').send({ username: 'alice', count: 5 });
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ username: 'alice', count: 5 });
   });

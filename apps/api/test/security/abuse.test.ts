@@ -9,7 +9,7 @@
  *   - Server-Side Request Forgery (SSRF) defense
  */
 
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import supertest from 'supertest';
 import crypto from 'crypto';
 import { createApp } from '../../src/app.js';
@@ -23,20 +23,19 @@ describe('TEST-107: Abuse, IDOR, Injection, and Mass Assignment', () => {
 
   let userAId: string;
   let userBId: string;
-  let adminId: string;
   let userACookie: string;
   let userBCookie: string;
-  let adminCookie: string;
 
   async function createSessionCookie(userId: string): Promise<string> {
     const rawToken = crypto.randomBytes(32).toString('base64url');
     const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
     const pool = getTestPool();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    await pool.query(
-      `INSERT INTO sessions (user_id, token_hash, expires_at) VALUES ($1, $2, $3)`,
-      [userId, tokenHash, expiresAt],
-    );
+    await pool.query(`INSERT INTO sessions (user_id, token_hash, expires_at) VALUES ($1, $2, $3)`, [
+      userId,
+      tokenHash,
+      expiresAt,
+    ]);
     return `${config.SESSION_COOKIE_NAME}=${rawToken}`;
   }
 
@@ -62,14 +61,12 @@ describe('TEST-107: Abuse, IDOR, Injection, and Mass Assignment', () => {
     userBCookie = await createSessionCookie(userBId);
 
     // Create Admin
-    const adminUser = await createTestUser({
+    await createTestUser({
       username: 'admin_user',
       email: 'admin@test.local',
       displayName: 'Admin Master',
       role: 'admin',
     });
-    adminId = adminUser.id;
-    adminCookie = await createSessionCookie(adminId);
   });
 
   describe('1. Insecure Direct Object References (IDOR)', () => {
@@ -123,15 +120,11 @@ describe('TEST-107: Abuse, IDOR, Injection, and Mass Assignment', () => {
     });
 
     it('prevents regular user from accessing administrator queue and audit endpoints', async () => {
-      const queueRes = await request
-        .get('/api/v1/admin/queue')
-        .set('Cookie', userACookie);
+      const queueRes = await request.get('/api/v1/admin/queue').set('Cookie', userACookie);
       expect(queueRes.status).toBe(403);
       expect(queueRes.body.error.code).toBe('FORBIDDEN');
 
-      const auditRes = await request
-        .get('/api/v1/admin/audit')
-        .set('Cookie', userACookie);
+      const auditRes = await request.get('/api/v1/admin/audit').set('Cookie', userACookie);
       expect(auditRes.status).toBe(403);
       expect(auditRes.body.error.code).toBe('FORBIDDEN');
     });
@@ -151,7 +144,6 @@ describe('TEST-107: Abuse, IDOR, Injection, and Mass Assignment', () => {
           q: '10.0',
           sigma: '0.1',
           status: 'active',
-          emailVerified: true,
         });
 
       expect(res.status).toBe(400);
@@ -186,13 +178,10 @@ describe('TEST-107: Abuse, IDOR, Injection, and Mass Assignment', () => {
       ];
 
       for (const payload of injectionPayloads) {
-        const res = await request
-          .post('/api/v1/auth/login')
-          .set('Origin', config.APP_ORIGIN)
-          .send({
-            identifier: payload,
-            password: 'SomePassword123!',
-          });
+        const res = await request.post('/api/v1/auth/login').set('Origin', config.APP_ORIGIN).send({
+          identifier: payload,
+          password: 'SomePassword123!',
+        });
 
         expect(res.status).toBe(401);
         expect(res.body.error.code).toBe('INVALID_CREDENTIALS');

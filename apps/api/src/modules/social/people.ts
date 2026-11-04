@@ -27,9 +27,7 @@ export function toUserSummary(row: UserRow): UserSummary {
     id: row.id,
     username: row.username,
     displayName: row.display_name,
-    avatarUrl: row.avatar_media_id
-      ? `${config.S3_PUBLIC_BASE_URL}/${row.avatar_media_id}`
-      : null,
+    avatarUrl: row.avatar_media_id ? `${config.S3_PUBLIC_BASE_URL}/${row.avatar_media_id}` : null,
     tier: tierOfValue(row.q),
   };
 }
@@ -91,10 +89,7 @@ export async function listConnections(
   const last = rows.at(-1);
   return {
     items: rows.map(toUserSummary),
-    nextCursor:
-      hasMore && last
-        ? encodeCursor(new Date(last.relation_created_at), last.id)
-        : null,
+    nextCursor: hasMore && last ? encodeCursor(new Date(last.relation_created_at), last.id) : null,
   };
 }
 
@@ -120,10 +115,7 @@ export async function listBlockedUsers(
   const last = rows.at(-1);
   return {
     items: rows.map(toUserSummary),
-    nextCursor:
-      hasMore && last
-        ? encodeCursor(new Date(last.relation_created_at), last.id)
-        : null,
+    nextCursor: hasMore && last ? encodeCursor(new Date(last.relation_created_at), last.id) : null,
   };
 }
 

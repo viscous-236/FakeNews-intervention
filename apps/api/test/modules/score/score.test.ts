@@ -35,9 +35,7 @@ describe('Score Module (TASK-045)', () => {
   });
 
   it('GET /waves/current: returns current open wave', async () => {
-    const res = await request
-      .get('/api/v1/waves/current')
-      .set('X-Forwarded-For', '10.0.20.1');
+    const res = await request.get('/api/v1/waves/current').set('X-Forwarded-For', '10.0.20.1');
 
     expect(res.status).toBe(200);
     expect(res.body.number).toBeGreaterThanOrEqual(1);
@@ -51,7 +49,6 @@ describe('Score Module (TASK-045)', () => {
       password: 'password123',
       displayName: 'Score User',
       sigma: 0.5,
-      emailVerified: true,
     });
 
     const admin = await createUser({
@@ -60,7 +57,6 @@ describe('Score Module (TASK-045)', () => {
       password: 'password123',
       displayName: 'Score Admin',
       role: 'admin',
-      emailVerified: true,
     });
 
     const pool = getTestPool();
@@ -150,7 +146,6 @@ describe('Score Module (TASK-045)', () => {
       email: 'ledger_hist@example.com',
       password: 'password123',
       displayName: 'Ledger User',
-      emailVerified: true,
     });
 
     const admin = await createUser({
@@ -159,7 +154,6 @@ describe('Score Module (TASK-045)', () => {
       password: 'password123',
       displayName: 'Ledger Admin',
       role: 'admin',
-      emailVerified: true,
     });
 
     const pool = getTestPool();
@@ -257,7 +251,6 @@ describe('Score Module (TASK-045)', () => {
       email: 'events_list@example.com',
       password: 'password123',
       displayName: 'Events User',
-      emailVerified: true,
     });
 
     const admin = await createUser({
@@ -266,7 +259,6 @@ describe('Score Module (TASK-045)', () => {
       password: 'password123',
       displayName: 'Events Admin',
       role: 'admin',
-      emailVerified: true,
     });
 
     const pool = getTestPool();
@@ -331,7 +323,6 @@ describe('Score Module (TASK-045)', () => {
       email: 'appealer@example.com',
       password: 'password123',
       displayName: 'Appealer User',
-      emailVerified: true,
     });
 
     const admin = await createUser({
@@ -340,7 +331,6 @@ describe('Score Module (TASK-045)', () => {
       password: 'password123',
       displayName: 'Appeal Admin',
       role: 'admin',
-      emailVerified: true,
     });
 
     const pool = getTestPool();
@@ -396,10 +386,9 @@ describe('Score Module (TASK-045)', () => {
     expect(appealRes.body.status).toBe('open');
 
     // 2. Verify event in DB transitioned to 'held' and wave_id = NULL
-    const evRow = await pool.query(
-      `SELECT status, wave_id FROM reputation_events WHERE id = $1`,
-      [eventId],
-    );
+    const evRow = await pool.query(`SELECT status, wave_id FROM reputation_events WHERE id = $1`, [
+      eventId,
+    ]);
     expect(evRow.rows[0]!.status).toBe('held');
     expect(evRow.rows[0]!.wave_id).toBeNull();
 
@@ -430,7 +419,6 @@ describe('Score Module (TASK-045)', () => {
       email: 'target_vis@example.com',
       password: 'password123',
       displayName: 'Target User',
-      emailVerified: true,
     });
 
     const otherUser = await createUser({
@@ -438,7 +426,6 @@ describe('Score Module (TASK-045)', () => {
       email: 'other_viewer@example.com',
       password: 'password123',
       displayName: 'Other Viewer',
-      emailVerified: true,
     });
 
     const admin = await createUser({
@@ -447,7 +434,6 @@ describe('Score Module (TASK-045)', () => {
       password: 'password123',
       displayName: 'Admin User',
       role: 'admin',
-      emailVerified: true,
     });
 
     // 1. Anonymous viewer: only tier returned
