@@ -1,7 +1,13 @@
 /** Administrator review queue and post inspection endpoints. */
 
 import { NextFunction, Request, Response, Router } from 'express';
-import { listPostsQuerySchema } from '@app/shared';
+import {
+  listPostsQuerySchema,
+  adminListQuerySchema,
+  userListQuerySchema,
+  auditQuerySchema,
+  exportQuerySchema,
+} from '@app/shared';
 import { z } from 'zod';
 import { getPool } from '../../db/pool.js';
 import { withTransaction } from '../../db/tx.js';
@@ -14,25 +20,48 @@ import { finalizeWave } from '../../scoring/finalizeWave.js';
 import { verifyScores } from '../../scoring/verify.js';
 import { decodeCursor, encodeCursor } from '../../db/cursor.js';
 import { softDeletePostRow, findPostById } from '../posts/repo.js';
-import { getSpreadAnalytics } from './analytics.js';
+import {
+  getOverviewAnalytics,
+  getDetectorAnalytics,
+  getWavesAnalytics,
+  getSpreadAnalytics,
+} from './analytics.js';
+import {
+  exportLedgerCsv,
+  exportEventsCsv,
+  exportAssessmentsCsv,
+} from './export.js';
 
 export const adminRouter = Router();
 const idParams = z.object({ id: z.string().uuid() }).strict();
-const adminListQuery = z
-  .object({
-    cursor: z.string().optional(),
-    limit: z.coerce.number().int().min(1).max(50).default(20),
-  })
-  .strict();
-const userListQuery = adminListQuery
-  .extend({
-    q: z.string().trim().min(1).max(100).optional(),
-    status: z.enum(['active', 'suspended', 'deleted']).optional(),
-  })
-  .strict();
-const auditQuery = adminListQuery
-  .extend({ action: z.string().trim().min(1).max(100).optional() })
-  .strict();
+const adminListQuery = adminListQuerySchema;
+const userListQuery = userListQuerySchema;
+const auditQuery = auditQuerySchema;
+const exportQuery = exportQuerySchema;
+
+adminRouter.get('/admin/analytics/overview', requireAdmin, async (_req, res, next) => {
+  try {
+    res.json(await getOverviewAnalytics());
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.get('/admin/analytics/detector', requireAdmin, async (_req, res, next) => {
+  try {
+    res.json(await getDetectorAnalytics());
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.get('/admin/analytics/waves', requireAdmin, async (_req, res, next) => {
+  try {
+    res.json(await getWavesAnalytics());
+  } catch (error) {
+    next(error);
+  }
+});
 
 adminRouter.get('/admin/analytics/spread', requireAdmin, async (_req, res, next) => {
   try {
@@ -41,6 +70,57 @@ adminRouter.get('/admin/analytics/spread', requireAdmin, async (_req, res, next)
     next(error);
   }
 });
+
+adminRouter.get(
+  '/admin/export/ledger.csv',
+  requireAdmin,
+  validate({ query: exportQuery }),
+  async (req, res, next) => {
+    try {
+      const query = req.query as unknown as { waveNumber?: number };
+      const csv = await exportLedgerCsv(query.waveNumber);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="ledger.csv"');
+      res.status(200).send(csv);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+adminRouter.get(
+  '/admin/export/events.csv',
+  requireAdmin,
+  validate({ query: exportQuery }),
+  async (req, res, next) => {
+    try {
+      const query = req.query as unknown as { waveNumber?: number };
+      const csv = await exportEventsCsv(query.waveNumber);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="events.csv"');
+      res.status(200).send(csv);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+adminRouter.get(
+  '/admin/export/assessments.csv',
+  requireAdmin,
+  validate({ query: exportQuery }),
+  async (req, res, next) => {
+    try {
+      const query = req.query as unknown as { waveNumber?: number };
+      const csv = await exportAssessmentsCsv(query.waveNumber);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="assessments.csv"');
+      res.status(200).send(csv);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 function serializeAdminUser(row: {
   id: string;

@@ -1380,10 +1380,12 @@ Verification (2026-11-03): direct-message REST tests pass for sending, conversat
 
 | Task | Description | Completed | Date |
 |---|---|---|---|
-| TASK-073 | Implement `GET /admin/analytics/overview`, `/detector`, and `/waves`. | | |
-| TASK-074 | Implement CSV exports `GET /admin/export/ledger.csv`, `/events.csv`, `/assessments.csv`. | | |
-| TASK-075 | Generate OpenAPI 3.1 from the Zod schemas into `docs/openapi.yaml` via `npm run docs:openapi`. | | |
-| TASK-076 | Write `apps/api/test/admin/analytics.test.ts` (TEST-090–TEST-094). | | |
+| TASK-073 | Implement `GET /admin/analytics/overview`, `/detector`, and `/waves`. | [x] | 2026-11-04 |
+| TASK-074 | Implement CSV exports `GET /admin/export/ledger.csv`, `/events.csv`, `/assessments.csv`. | [x] | 2026-11-04 |
+| TASK-075 | Generate OpenAPI 3.1 from the Zod schemas into `docs/openapi.yaml` via `npm run docs:openapi`. | [x] | 2026-11-04 |
+| TASK-076 | Write `apps/api/test/admin/analytics.test.ts` (TEST-090–TEST-094). | [x] | 2026-11-04 |
+
+Verification (2026-11-04): All analytics and export tests (TEST-090–TEST-094) pass against real PostgreSQL. Overview counts equal direct database table aggregates; detector confusion analytics matches SQL; CSV exports correctly escape and round-trip RFC 4180 quotes, commas, and newlines; spread analytics groups reshares and likes before/after label times; and the OpenAPI 3.1 specification at docs/openapi.yaml is generated and verified up-to-date with 76 endpoints and complete schema definitions (REQ-034).
 
 ### Implementation Phase 12: Frontend
 
