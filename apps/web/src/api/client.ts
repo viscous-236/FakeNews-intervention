@@ -1,13 +1,13 @@
 /**
- * API client (TASK-006).
+ * API client (TASK-006, TASK-077).
  *
- * Thin fetch wrapper that:
- *   - Always sends credentials (session cookie)
- *   - Parses the error envelope into an ApiError
- *   - Provides typed helpers for common methods
+ * Full-featured fetch wrapper that:
+ *   - Sends credentials (session cookie)
+ *   - Injects Origin header
+ *   - Serializes JSON and handles FormData
+ *   - Parses the backend error envelope into an ApiError
  */
 
-/** Error envelope shape (Section 1.7) */
 export interface ErrorEnvelope {
   error: {
     code: string;
@@ -30,15 +30,40 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(path, {
+function buildQuery(query?: Record<string, unknown>): string {
+  if (!query) return '';
+  const searchParams = new URLSearchParams();
+  for (const [key, val] of Object.entries(query)) {
+    if (val !== undefined && val !== null && val !== '') {
+      searchParams.append(key, String(val));
+    }
+  }
+  const str = searchParams.toString();
+  return str ? `?${str}` : '';
+}
+
+async function request<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  query?: Record<string, unknown>,
+): Promise<T> {
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+  const fullPath = `${path}${buildQuery(query)}`;
+
+  const headers: Record<string, string> = {
+    Origin: typeof window !== 'undefined' ? window.location.origin : '',
+  };
+
+  if (!isFormData && body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  const res = await fetch(fullPath, {
     method,
     credentials: 'include',
-    headers: {
-      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-      Origin: window.location.origin,
-    },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    headers,
+    body: isFormData ? (body as FormData) : body !== undefined ? JSON.stringify(body) : undefined,
   });
 
   if (!res.ok) {
@@ -64,8 +89,11 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 }
 
 export const apiClient = {
-  get: <T>(path: string) => request<T>('GET', path),
-  post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
-  patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
-  delete: <T>(path: string, body?: unknown) => request<T>('DELETE', path, body),
+  get: <T>(path: string, query?: Record<string, unknown>) => request<T>('GET', path, undefined, query),
+  post: <T>(path: string, body?: unknown, query?: Record<string, unknown>) => request<T>('POST', path, body, query),
+  patch: <T>(path: string, body?: unknown, query?: Record<string, unknown>) => request<T>('PATCH', path, body, query),
+  delete: <T>(path: string, body?: unknown, query?: Record<string, unknown>) => request<T>('DELETE', path, body, query),
+  upload: <T>(path: string, formData: FormData) => request<T>('POST', path, formData),
 };
+
+export const api = apiClient;

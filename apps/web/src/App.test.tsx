@@ -24,6 +24,6 @@ function renderApp(): ReturnType<typeof render> {
 describe('App', () => {
   it('renders the platform heading', () => {
     renderApp();
-    expect(screen.getByText('FakeNews Intervention Platform')).toBeDefined();
+    expect(screen.getAllByText('FakeNews Intervention Platform').length).toBeGreaterThan(0);
   });
 });

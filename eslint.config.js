@@ -15,6 +15,7 @@ module.exports = tseslint.config(
       '**/.vitest-cache/**',
       '**/.venv/**',
       '**/venv/**',
+      '**/.agents/**',
     ],
   },
   {

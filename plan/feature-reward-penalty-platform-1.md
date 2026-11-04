@@ -1396,32 +1396,34 @@ Verification (2026-11-04): All analytics and export tests (TEST-090–TEST-094) 
 
 | Task | Description | Completed | Date |
 |---|---|---|---|
-| TASK-077 | Foundation: app shell, shared UI components, `useMe` hook, route guards, `src/copy.ts` (including copy for `RESPONSIBLE_RESHARE`, `MISINFO_LIKE`, and `interaction_retracted`). | | |
-| TASK-078 | Auth pages (`/login`, `/register`, `/forgot-password`, `/reset-password`, `/verify-email`). | | |
-| TASK-079 | `PostCard` component. | | |
-| TASK-080 | `Composer` component. | | |
-| TASK-081 | Home page (Global and Following tabs, composer, Who to follow). | | |
-| TASK-082 | Post detail page `/p/:id`. | | |
-| TASK-083 | Interaction components: like toggle, reshare dialog (with `CONFIRMATION_REQUIRED` prompt), retract reshare, report dialog, edit/delete post. | | |
-| TASK-084 | Profile page `/u/:username`, followers, following. | | |
-| TASK-085 | Settings page. | | |
-| TASK-086 | Search page `/search`. | | |
-| TASK-087 | Notifications page and `useNotificationStream` SSE hook. | | |
-| TASK-088 | Messages pages and WebSocket hook. | | |
-| TASK-089 | Score page `/score` (current Q, tier, sigma, pending current-wave projection). | | |
-| TASK-090 | Score history table and per-wave explanation drawer showing all 7 event kinds and arithmetic `R = n+ - n- + adjustments`. | | |
-| TASK-091 | Events list (pending, counted, voided with reason chips) with Appeal button for eligible negative events (`MISINFO_POST`, `MISINFO_RESHARE`, `MISINFO_LIKE`), and `/appeals` page. | | |
-| TASK-092 | Admin shell (`/admin`) and overview page. | | |
-| TASK-093 | Admin review queue page (showing reported `auto_real` posts alongside unassessed flagged/reported posts). | | |
-| TASK-094 | Admin review workspace `/admin/posts/:id` (showing consequence summary including author, resharers, likers, and reporters). | | |
-| TASK-095 | Admin appeals page. | | |
-| TASK-096 | Admin waves page. | | |
-| TASK-097 | Admin users page, audit log page, and score verification page. | | |
-| TASK-098 | Admin analytics page with recharts and CSV export buttons. | | |
-| TASK-099 | Legal pages (`/legal/terms`, `/legal/privacy`, `/legal/guidelines` explaining how posts, reshares, likes, reports, retractions, and waves affect scores). | | |
-| TASK-100 | Global error/empty/loading states. | | |
-| TASK-101 | Accessibility and responsiveness pass (360 px to 1280 px, WCAG 2.1 AA). | | |
-| TASK-102 | Component tests (Vitest and Testing Library) for `PostCard`, score explanation drawer (including `MISINFO_LIKE` and `RESPONSIBLE_RESHARE`), reshare dialog, and composer. | | |
+| TASK-077 | Foundation: app shell, shared UI components, `useMe` hook, route guards, `src/copy.ts` (including copy for `RESPONSIBLE_RESHARE`, `MISINFO_LIKE`, and `interaction_retracted`). | [x] | 2026-11-04 |
+| TASK-078 | Auth pages (`/login`, `/register`, `/forgot-password`, `/reset-password`, `/verify-email`). | [x] | 2026-11-04 |
+| TASK-079 | `PostCard` component. | [x] | 2026-11-04 |
+| TASK-080 | `Composer` component. | [x] | 2026-11-04 |
+| TASK-081 | Home page (Global and Following tabs, composer, Who to follow). | [x] | 2026-11-04 |
+| TASK-082 | Post detail page `/p/:id`. | [x] | 2026-11-04 |
+| TASK-083 | Interaction components: like toggle, reshare dialog (with `CONFIRMATION_REQUIRED` prompt), retract reshare, report dialog, edit/delete post. | [x] | 2026-11-04 |
+| TASK-084 | Profile page `/u/:username`, followers, following. | [x] | 2026-11-04 |
+| TASK-085 | Settings page. | [x] | 2026-11-04 |
+| TASK-086 | Search page `/search`. | [x] | 2026-11-04 |
+| TASK-087 | Notifications page and `useNotificationStream` SSE hook. | [x] | 2026-11-04 |
+| TASK-088 | Messages pages and WebSocket hook. | [x] | 2026-11-04 |
+| TASK-089 | Score page `/score` (current Q, tier, sigma, pending current-wave projection). | [x] | 2026-11-04 |
+| TASK-090 | Score history table and per-wave explanation drawer showing all 7 event kinds and arithmetic `R = n+ - n- + adjustments`. | [x] | 2026-11-04 |
+| TASK-091 | Events list (pending, counted, voided with reason chips) with Appeal button for eligible negative events (`MISINFO_POST`, `MISINFO_RESHARE`, `MISINFO_LIKE`), and `/appeals` page. | [x] | 2026-11-04 |
+| TASK-092 | Admin shell (`/admin`) and overview page. | [x] | 2026-11-04 |
+| TASK-093 | Admin review queue page (showing reported `auto_real` posts alongside unassessed flagged/reported posts). | [x] | 2026-11-04 |
+| TASK-094 | Admin review workspace `/admin/posts/:id` (showing consequence summary including author, resharers, likers, and reporters). | [x] | 2026-11-04 |
+| TASK-095 | Admin appeals page. | [x] | 2026-11-04 |
+| TASK-096 | Admin waves page. | [x] | 2026-11-04 |
+| TASK-097 | Admin users page, audit log page, and score verification page. | [x] | 2026-11-04 |
+| TASK-098 | Admin analytics page with recharts and CSV export buttons. | [x] | 2026-11-04 |
+| TASK-099 | Legal pages (`/legal/terms`, `/legal/privacy`, `/legal/guidelines` explaining how posts, reshares, likes, reports, retractions, and waves affect scores). | [x] | 2026-11-04 |
+| TASK-100 | Global error/empty/loading states. | [x] | 2026-11-04 |
+| TASK-101 | Accessibility and responsiveness pass (360 px to 1280 px, WCAG 2.1 AA). | [x] | 2026-11-04 |
+| TASK-102 | Component tests (Vitest and Testing Library) for `PostCard`, score explanation drawer (including `MISINFO_LIKE` and `RESPONSIBLE_RESHARE`), reshare dialog, and composer. | [x] | 2026-11-04 |
+
+Verification (2026-11-04): Full Phase 12 Frontend implemented and verified. All 26 tasks (TASK-077 through TASK-102) completed. Component tests (TASK-102) pass 100% across PostCard, ScoreExplanationDrawer, ReshareDialog, and Composer. Zero client-side score arithmetic; all values, formula parameters, and wave deltas are delivered via server API. All 7 v2.0 event kinds (including MISINFO_LIKE, RESPONSIBLE_RESHARE, and REVERSAL), void reasons (interaction_retracted, cap_exceeded, assessment_superseded), and Good-Faith window retractions are represented in UI. ESLint, typecheck, apps/web Vitest, and production Vite bundle build pass cleanly.
 
 ### Implementation Phase 13: Security and observability
 
