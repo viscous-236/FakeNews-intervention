@@ -11,11 +11,13 @@
     "node": ">=22"
   },
   "scripts": {
+    "dev:api": "node --env-file=.env ./node_modules/.bin/tsx watch apps/api/src/index.ts",
+    "dev:web": "npm run dev -w apps/web",
     "lint": "eslint .",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
-    "db:migrate": "npm run db:migrate -w apps/api",
+    "db:migrate": "node --env-file=.env ./node_modules/.bin/node-pg-migrate up --migrations-dir apps/api/src/db/migrations",
     "db:migrate:test": "npm run db:migrate:test -w apps/api",
     "docs:openapi": "tsx scripts/generate-openapi.ts"
   },
