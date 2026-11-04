@@ -22,8 +22,11 @@
     "docs:openapi": "tsx scripts/generate-openapi.ts"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@eslint/js": "^9.13.0",
+    "@playwright/test": "^1.64.1",
     "@types/js-yaml": "^4.0.9",
+    "autocannon": "^8.0.0",
     "eslint": "^9.13.0",
     "eslint-config-prettier": "^9.1.0",
     "prettier": "^3.3.3",
