@@ -8,6 +8,7 @@ import { Request, Response, NextFunction } from 'express';
 import { randomUUID } from 'crypto';
 import { ZodError } from 'zod';
 import { logger } from '../logger.js';
+import { captureException } from '../sentry.js';
 import { isPgError, mapPgError } from '../db/errors.js';
 import { AppError, ErrorEnvelope } from './appError.js';
 
@@ -120,6 +121,7 @@ export function errorHandler(
   }
 
   // Unexpected internal server error
+  captureException(err, { requestId });
   logger.error({ err, requestId }, 'Unhandled error');
   const body: ErrorEnvelope = {
     error: {

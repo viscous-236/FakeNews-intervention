@@ -29,6 +29,8 @@ import { detectionAdminRouter } from './modules/admin/detectionRoutes.js';
 import { securityMiddleware } from './middleware/security.js';
 import { originCheck } from './middleware/originCheck.js';
 import { errorHandler, notFoundHandler, AppError, ErrorEnvelope } from './middleware/errors.js';
+import { initSentry } from './sentry.js';
+import { metricsMiddleware, metricsHandler } from './metrics.js';
 
 export { AppError, ErrorEnvelope };
 
@@ -36,6 +38,7 @@ export { AppError, ErrorEnvelope };
 // Factory
 // ---------------------------------------------------------------------------
 export function createApp(): express.Application {
+  initSentry();
   const app = express();
 
   // ---- Trust proxy (Section 1.9) -------------------------------------------
@@ -46,6 +49,9 @@ export function createApp(): express.Application {
     (req as Request & { id: string }).id = randomUUID();
     next();
   });
+
+  // ---- Prometheus metrics collection ---------------------------------------
+  app.use(metricsMiddleware);
 
   // ---- Security headers (Helmet & CSP) -------------------------------------
   app.use(securityMiddleware());
@@ -72,8 +78,9 @@ export function createApp(): express.Application {
   // ---- Body parsing --------------------------------------------------------
   app.use(express.json({ limit: '100kb' }));
 
-  // ---- Health check (root level) -------------------------------------------
+  // ---- Root-level endpoints ------------------------------------------------
   app.use(healthRouter);
+  app.get('/metrics', metricsHandler);
 
   // ---- API v1 Router -------------------------------------------------------
   const apiV1 = Router();

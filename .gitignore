@@ -48,6 +48,10 @@ opencode.jsonc
 
 # Playwright
 test-results/
+
+# Backups
+backups/
+*.dump
 playwright-report/
 
 # Temp

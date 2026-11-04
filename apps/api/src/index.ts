@@ -8,7 +8,7 @@
 import { config, parseConfig } from './config';
 import { createApp } from './app';
 import { logger } from './logger';
-import { closePool } from './db/pool';
+import { executeGracefulShutdown } from './shutdown.js';
 import { attachWebSocketServer } from './realtime/ws';
 import { closeAllConnections } from './realtime/hub';
 import {
@@ -59,20 +59,14 @@ const shutdown = (signal: string): void => {
   shuttingDown = true;
   logger.info({ signal }, 'Shutdown signal received');
 
-  const detectionStopped = stopDetectionWorker();
-  stopAutoReal();
-  stopWaveScheduler();
-  stopEmailOutbox();
-  stopMediaCleanup();
-  closeAllConnections();
-  webSocketServer.close();
+  executeGracefulShutdown({ server, wss: webSocketServer })
+    .then(() => process.exit(0))
+    .catch((err) => {
+      logger.error({ err }, 'Error during graceful shutdown');
+      process.exit(1);
+    });
 
-  server.close(() => {
-    logger.info('HTTP server closed');
-    void detectionStopped.then(() => closePool()).then(() => process.exit(0));
-  });
-
-  // Force exit after 20 s
+  // Force exit after 20 s (REQ-037)
   setTimeout(() => {
     logger.error('Graceful shutdown timeout — forcing exit');
     process.exit(1);

@@ -1433,11 +1433,13 @@ Verification (2026-11-04): Full Phase 12 Frontend implemented and verified. All 
 
 | Task | Description | Completed | Date |
 |---|---|---|---|
-| TASK-103 | Write `apps/api/test/security/headers-and-limits.test.ts` (TEST-106). | | |
-| TASK-104 | Add Sentry and prom-client metrics at `/metrics`. | | |
-| TASK-105 | Tests for logging redaction and graceful shutdown (REQ-037). | | |
-| TASK-106 | Implement and rehearse `scripts/backup.sh` and `scripts/restore.sh` (REQ-045). | | |
-| TASK-107 | Write `apps/api/test/security/abuse.test.ts` (TEST-107) and `docs/SECURITY.md`. | | |
+| TASK-103 | Write `apps/api/test/security/headers-and-limits.test.ts` (TEST-106). | [x] | 2026-11-04 |
+| TASK-104 | Add Sentry and prom-client metrics at `/metrics`. | [x] | 2026-11-04 |
+| TASK-105 | Tests for logging redaction and graceful shutdown (REQ-037). | [x] | 2026-11-04 |
+| TASK-106 | Implement and rehearse `scripts/backup.sh` and `scripts/restore.sh` (REQ-045). | [x] | 2026-11-04 |
+| TASK-107 | Write `apps/api/test/security/abuse.test.ts` (TEST-107) and `docs/SECURITY.md`. | [x] | 2026-11-04 |
+
+Verification (2026-11-04): Full Phase 13 Security and Observability implemented and verified. All 5 tasks (TASK-103 through TASK-107) completed. TEST-106 (headers, origin check, payload limits, rate limits, strict schema key rejection) and TEST-107 (IDOR, mass assignment, SQL injection, stored XSS as text, SSRF prevention) pass 100% (22/22 tests). Sentry integration (@sentry/node) and prom-client metrics at `/metrics` guarded by METRICS_TOKEN are active. Graceful shutdown handler (REQ-037) stops background loops, closes SSE and WebSocket connections, drains HTTP, and closes DB pool. Database backup (`scripts/backup.sh`) and restore (`scripts/restore.sh`) scripts created and rehearsed against Postgres. Complete threat model and security specifications committed to `docs/SECURITY.md`.
 
 ### Implementation Phase 14: Test completion
 
